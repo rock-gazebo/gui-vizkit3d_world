@@ -1,3 +1,3 @@
 rock_testsuite(test_suite suite.cpp
-   test_Dummy.cpp
+   testVizkit3dWorld.cpp
    DEPS vizkit3d_world)
