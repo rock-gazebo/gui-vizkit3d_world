@@ -2,12 +2,16 @@ rock_find_cmake(Boost REQUIRED COMPONENTS system thread date_time chrono)
 
 rock_library(vizkit3d_world
     SOURCES 
+        Events.cpp
         Vizkit3dWorld.cpp
 
     MOC 
+        Events.hpp
         Vizkit3dWorld.hpp
 
     HEADERS
+        Utils.hpp
+        Events.hpp
         Vizkit3dWorld.hpp
 
     LIBS
@@ -18,10 +22,19 @@ rock_library(vizkit3d_world
         
     DEPS_PKGCONFIG
         base-types
+        base-lib
         sdformat
         vizkit3d
-        robot_model-viz)
+        robot_model-viz
+)
 
-rock_executable(vizkit3d_world_bin Main.cpp
-    DEPS vizkit3d_world)
+rock_executable(vizkit3d_world_bin
+    SOURCES
+        Main.cpp
+    DEPS
+        vizkit3d_world
+    DEPS_PKGCONFIG
+        opencv
+        frame_helper
+)
 

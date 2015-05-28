@@ -4,7 +4,7 @@
     <world name="simple">
         
         <include>
-            <pose>2 2 0 0 0 0</pose>
+            <pose>0 0 0 0 0 0</pose>
             <uri>model://simple_arm</uri>
         </include>
         

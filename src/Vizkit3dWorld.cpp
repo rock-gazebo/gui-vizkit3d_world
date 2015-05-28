@@ -10,22 +10,25 @@
 #include <QtGui>
 #include <QtCore>
 #include <QEvent>
-#include <csignal>
 
 #include <boost/algorithm/string.hpp>
 #include <vizkit3d_world/Vizkit3dWorld.hpp>
+#include <osgViewer/View>
+#include <osgGA/CameraManipulator>
+#include <osgGA/FirstPersonManipulator>
+
+#include "Utils.hpp"
 
 namespace vizkit3d_world {
 
-void CustomEventReceiver::customEvent(QEvent *evt)
-{
-    world->customEvent(evt);
-}
-
 Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPaths, bool showGui)
-    : worldPath(path), modelPaths(modelPaths), showGui(showGui), widget(NULL), running(false)
+    : worldPath(path),
+      modelPaths(modelPaths),
+      showGui(showGui),
+      widget(NULL),
+      running(false),
+      currentFrame(new base::samples::frame::Frame())
 {
-
     loadGazeboModelPaths(modelPaths);
 }
 
@@ -40,20 +43,40 @@ void Vizkit3dWorld::initialize() {
         return;
     }
 
-    guiThread = boost::thread( boost::bind( &Vizkit3dWorld::run, this ) );
+    // start the event loop thread
     boost::mutex::scoped_lock lock(mut);
+    guiThread = boost::thread( boost::bind( &Vizkit3dWorld::run, this ));
+
+    //set thread priority to max
+    setthread_priority_max(guiThread);
+
+    //wait until the settings is finished in the event loop thread
     cond.wait(lock);
+    usleep(100);
 }
 
 void Vizkit3dWorld::deinitialize() {
 
-    if (running){
+    if (running) {
+
+        { //finish Qt event loop thread
+            boost::mutex::scoped_lock lock(mut);
+
+            app->closeAllWindows();
+
+            appQuit = true;
+
+            processEventCondition.notify_all();
+
+            cond.wait(lock);
+        }
+
         //close all openned windows
-        qApp->closeAllWindows();
+
         //the correct way is to use guiThread.join()
         //but if showGui is "false" then the QApplication::exec is frozen
-        //to solve this problem join the thread for 500
-        guiThread.try_join_for(boost::chrono::milliseconds(500));
+        //to solve this problem join the thread for 1000
+        guiThread.try_join_for(boost::chrono::milliseconds(1000));
     }
 }
 
@@ -70,43 +93,106 @@ void Vizkit3dWorld::wait(){
  */
 void Vizkit3dWorld::run() {
 
-    int argc = 1;
-    char *argv[] = { "vizkit3d_world" };
+    QEventLoop::ProcessEventsFlags flags = QEventLoop::ExcludeSocketNotifiers;
 
-    QApplication app(argc, argv);
+    { //start QApplication, vizkit3d and load SDF models
+        boost::mutex::scoped_lock lock(mut);
+        int argc = 1;
+        char *argv[] = { "vizkit3d_world" };
 
-    //intercept the custom events
-    customEventReceiver = new CustomEventReceiver(this);
+        app = new QApplication(argc, argv);
 
-    //main widget to store the plugins and performs the GUI events
-    widget = new vizkit3d::Vizkit3DWidget();
+        //intercept the custom events
+        customEventReceiver = new events::CustomEventReceiver(this);
 
-    //remove the close button from window title
-    widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowCloseButtonHint);
+        //main widget to store the plugins and performs the GUI events
+        widget = new vizkit3d::Vizkit3DWidget();
 
-    if (showGui)  widget->show();
+        //remove the close button from window title
+        widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowCloseButtonHint); //remove close button from windows title
+        widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowMaximizeButtonHint); //remove maximize button from windows title
+        widget->setFixedSize(800, 600); //set the window size
+        widget->getPropertyWidget()->hide(); //hide the right property widget
 
-    //load the world sdf file and created the vizkit3d::RobotVisualization models
-    //It is necessary to create the vizkit3d plugins in the same thread of QApplication
-    loadFromFile(worldPath);
-    attachPlugins();
-    //apply the tranformations in each model
-    applyTransformations();
+        while (app->startingUp()) usleep(100);
 
-    running = true;
+        //load the world sdf file and created the vizkit3d::RobotVisualization models
+        //It is necessary to create the vizkit3d plugins in the same thread of QApplication
+        loadFromFile(worldPath);
+        attachPlugins();
+
+        //apply the tranformations in each model
+        applyTransformations();
+
+        if (showGui) {
+            widget->show();
+        }
+        else {
+            /**
+             * if the widget is not showing, not process the user input events
+             */
+            flags |= QEventLoop::ExcludeUserInputEvents;
+        }
+
+        running = true;
+        appQuit = false;
+    }
+
     cond.notify_one();
 
-    app.exec();
-    app.exit(0);
+    /**
+     * custom Qt event loop
+     *
+     * blocking wait for notification
+     * when notification is received process the Qt events
+     */
+    while (!appQuit)
+    {
+        boost::mutex::scoped_lock lock(processEventMutex);
 
-    running = false;
+        //this condition is used to notify the calling function (notifyEvents) that the events were processed
+        notifyEventCondition.notify_all();
+        //block the thread until receiving a notification
+        processEventCondition.wait(lock);
+
+        {
+            /**
+            * this mutex is used to synchronize the calling function (notifyEvents) with event loop thread
+            * using this mutex, if notifyEvents is called, then notifyEvents is blocked until processEvents is finished
+            */
+            boost::mutex::scoped_lock lock(notifyEventMutex);
+            app->processEvents(flags);
+        }
+
+    }
+
+    {   // finalize Qt event loop
+        // remove objects from memory
+        boost::mutex::scoped_lock lock(mut);
+        delete widget;
+        widget = NULL;
+        delete app;
+        app = NULL;
+        toSdfElement.clear();
+        robotVizMap.clear();
+        running = false;
+    }
 
     cond.notify_one();
+}
 
-    delete widget;
-    widget = NULL;
-    toSdfElement.clear();
-    robotVizMap.clear();
+void Vizkit3dWorld::notifyEvents()
+{
+
+    //this mutex is used to synchronize event loop thread
+    //this mutex also doesn't allow to execute notifyEvents in parallel
+    boost::mutex::scoped_lock lock(notifyEventMutex);
+    //notify event loop thread unblocking it
+    processEventCondition.notify_all();
+    //wait until process events is finalized
+    notifyEventCondition.wait(lock);
+    //this sleep is important because it blocks the current thread, allowing the other threads to get time on the processor
+    usleep(250);
 }
 
 void Vizkit3dWorld::loadFromFile(std::string path) {
@@ -138,11 +224,11 @@ void Vizkit3dWorld::loadGazeboModelPaths(std::vector<std::string> modelPaths) {
         sdf::addURIPath("model://", *it);
     }
 
-    std::string home = std::string(getenv("HOME"));
+    std::string home = getEnv("HOME");
 
     sdf::addURIPath("model://", home + "/.gazebo/models");
 
-    std::string path = getenv("GAZEBO_MODEL_PATH") + std::string(":") + getenv("PATH");
+    std::string path = getEnv("GAZEBO_MODEL_PATH") + std::string(":") + getEnv("PATH");
 
     std::vector<std::string> vec;
     boost::algorithm::split(vec, path, boost::algorithm::is_any_of(":"), boost::algorithm::token_compress_on);
@@ -273,26 +359,105 @@ void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sou
 void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sourceFrame, QVector3D position, QQuaternion orientation) {
 
     if (widget) {
-        widget->setTransformation(targetFrame.c_str(),
-                                  sourceFrame.c_str(),
+        widget->setTransformation(QString::fromStdString(targetFrame),
+                                  QString::fromStdString(sourceFrame),
                                   position,
                                   orientation);
     }
 }
 
-void Vizkit3dWorld::customEvent(QEvent *e){
-    //intercept custom events
-    if (e->type() == TransformationEvent::ID){
-        TransformationEvent *te = (TransformationEvent*)e;
+void Vizkit3dWorld::customEvent(QEvent *e) {
+    if (e->type() == events::TransformationEventId) {
+        events::TransformationEvent *te = (events::TransformationEvent*)e;
         applyTransformation(te->pose);
+    }
+    else if (e->type() == events::GrabbingEventId) {
+        events::GrabbingEvent *ge = (events::GrabbingEvent*)e;
+        enableGrabbing(ge->enableGrabbing);
+    }
+    else if (e->type() == events::GrabEventId) {
+        grabbedImage = widget->grab();
     }
 }
 
 void Vizkit3dWorld::setTransformation(base::samples::RigidBodyState rbs) {
     //the function setTransformation must be called from Qt event loop thread
     //if setTransformation was called in another thread the application breaks
-    QEvent *evt = new TransformationEvent(rbs);
-    QCoreApplication::postEvent(customEventReceiver, evt);
+    QEvent *evt = new events::TransformationEvent(rbs);
+    app->postEvent(customEventReceiver, evt);
+}
+
+void Vizkit3dWorld::setCameraPos(base::samples::RigidBodyState pose) {
+    osgViewer::View *view = widget->getView(0);
+
+    osg::Vec3d pos; //camera position
+    osg::Quat rot; //camera rotation
+
+    //convert RigidBodyState to osg::Matrixd
+    osg::Matrixd m;
+    m.setTrans(osg::Vec3f(pose.position.x(), pose.position.y(), pose.position.z()));
+    m.setRotate(osg::Quat(pose.orientation.x(),
+                          pose.orientation.y(),
+                          pose.orientation.z(),
+                          pose.orientation.w()));
+
+    osgGA::StandardManipulator *manipulator = dynamic_cast<osgGA::StandardManipulator*>(view->getCameraManipulator());
+    manipulator->setByMatrix(m);
+}
+
+
+//post event to enable grabbing
+void Vizkit3dWorld::postEnableGrabbing() {
+    QEvent *evt = new events::GrabbingEvent(true);
+    app->postEvent(customEventReceiver, evt);
+}
+
+
+//post event to disable grabbing
+void Vizkit3dWorld::postDisableGrabbing()
+{
+    QEvent *evt = new events::GrabbingEvent(false);
+    app->postEvent(customEventReceiver, evt);
+}
+
+//internal enable and disable grabbing
+void Vizkit3dWorld::enableGrabbing(bool value)
+{
+
+    if (value) {
+        widget->enableGrabbing();
+        grabbedImage = widget->grab();
+    }
+    else {
+        widget->disableGrabbing();
+    }
+}
+
+//post event to grab image
+void Vizkit3dWorld::postGrabImage()
+{
+    QEvent *evt = new QEvent(QEvent::Type(events::GrabEventId));
+    app->postEvent(customEventReceiver, evt);
+}
+
+//grab image
+//post event to grab image and notify event loop
+QImage Vizkit3dWorld::grabImage()
+{
+    postGrabImage();
+    notifyEvents();
+    return grabbedImage;
+}
+
+//grab frame
+//convert QImage to base::samples::frame::Frame
+base::samples::frame::Frame* Vizkit3dWorld::grabFrame()
+{
+    QImage image = grabImage();
+
+    cvtQImageToFrame(image, *currentFrame, (widget->isVisible() && !widget->isMinimized()));
+    currentFrame->time = base::Time::now();
+    return currentFrame;
 }
 
 }
