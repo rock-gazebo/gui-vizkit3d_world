@@ -44,32 +44,25 @@ void Vizkit3dWorld::initialize() {
     }
 
     // start the event loop thread
-    boost::mutex::scoped_lock lock(mut);
+    boost::mutex::scoped_lock lock(mutex);
     guiThread = boost::thread( boost::bind( &Vizkit3dWorld::run, this ));
-
-    //set thread priority to max
-    setthread_priority_max(guiThread);
 
     //wait until the settings is finished in the event loop thread
     cond.wait(lock);
-    usleep(100);
 }
 
 void Vizkit3dWorld::deinitialize() {
 
     if (running) {
-
         { //finish Qt event loop thread
-            boost::mutex::scoped_lock lock(mut);
-
-            app->closeAllWindows();
+            boost::mutex::scoped_lock lock(mutex);
 
             appQuit = true;
-
-            processEventCondition.notify_all();
-
+            cond.notify_all();
             cond.wait(lock);
         }
+
+        app->closeAllWindows();
 
         //close all openned windows
 
@@ -80,23 +73,15 @@ void Vizkit3dWorld::deinitialize() {
     }
 }
 
-void Vizkit3dWorld::wait(){
-    /**
-     * wait until Qt event loop thread stop
-     */
-    boost::mutex::scoped_lock lock(mut);
-    cond.wait(lock);
-}
-
 /**
  * Thread procedure with Qt event loop thread
  */
 void Vizkit3dWorld::run() {
+    boost::mutex::scoped_lock lock(mutex);
 
     QEventLoop::ProcessEventsFlags flags = QEventLoop::ExcludeSocketNotifiers;
 
     { //start QApplication, vizkit3d and load SDF models
-        boost::mutex::scoped_lock lock(mut);
         int argc = 1;
         char *argv[] = { "vizkit3d_world" };
 
@@ -138,62 +123,44 @@ void Vizkit3dWorld::run() {
         appQuit = false;
     }
 
-    cond.notify_one();
-
     /**
      * custom Qt event loop
      *
      * blocking wait for notification
      * when notification is received process the Qt events
      */
+    cond.notify_all();
+
     while (!appQuit)
     {
-        boost::mutex::scoped_lock lock(processEventMutex);
-
-        //this condition is used to notify the calling function (notifyEvents) that the events were processed
-        notifyEventCondition.notify_all();
         //block the thread until receiving a notification
-        processEventCondition.wait(lock);
-
-        {
-            /**
-            * this mutex is used to synchronize the calling function (notifyEvents) with event loop thread
-            * using this mutex, if notifyEvents is called, then notifyEvents is blocked until processEvents is finished
-            */
-            boost::mutex::scoped_lock lock(notifyEventMutex);
-            app->processEvents(flags);
-        }
-
+        cond.wait(lock);
+        cond.notify_all();
+        app->processEvents(flags);
     }
 
-    {   // finalize Qt event loop
-        // remove objects from memory
-        boost::mutex::scoped_lock lock(mut);
-        delete widget;
-        widget = NULL;
-        delete app;
-        app = NULL;
-        toSdfElement.clear();
-        robotVizMap.clear();
-        running = false;
-    }
+    delete widget;
+    widget = NULL;
+    delete app;
+    app = NULL;
+    toSdfElement.clear();
+    robotVizMap.clear();
+    running = false;
 
-    cond.notify_one();
+    cond.notify_all();
 }
 
 void Vizkit3dWorld::notifyEvents()
 {
-
     //this mutex is used to synchronize event loop thread
     //this mutex also doesn't allow to execute notifyEvents in parallel
-    boost::mutex::scoped_lock lock(notifyEventMutex);
+    boost::mutex::scoped_lock lock(mutex);
     //notify event loop thread unblocking it
-    processEventCondition.notify_all();
+    cond.notify_all();
     //wait until process events is finalized
-    notifyEventCondition.wait(lock);
-    //this sleep is important because it blocks the current thread, allowing the other threads to get time on the processor
-    usleep(250);
+    cond.wait(lock);
 }
+
 
 void Vizkit3dWorld::loadFromFile(std::string path) {
     std::ifstream file(path.c_str());

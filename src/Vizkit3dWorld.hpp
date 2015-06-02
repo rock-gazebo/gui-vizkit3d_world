@@ -266,14 +266,12 @@ protected:
 
     std::map<std::string, sdf::ElementPtr> toSdfElement; //map sdf element using model name
 
-    boost::mutex mut; //mutex used to sincronize the event loop thread and other threads
-    boost::condition_variable cond; //condition used to sincronize the event loop thread and other threads
 
-    boost::mutex processEventMutex;
-    boost::condition_variable processEventCondition;
-
-    boost::mutex notifyEventMutex;
-    boost::condition_variable notifyEventCondition;
+    /**
+     * synchronize the qt event loop thread and another threads
+     */
+    boost::mutex mutex;
+    boost::condition_variable cond;
 
     boost::thread guiThread; //event loop thread
 
