@@ -16,15 +16,21 @@
 #include <osgViewer/View>
 #include <osgGA/CameraManipulator>
 #include <osgGA/FirstPersonManipulator>
-
+#include <base/Logging.hpp>
 #include "Utils.hpp"
 
 namespace vizkit3d_world {
 
-Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPaths, bool showGui)
+Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPaths, bool showGui,
+                            int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar)
     : worldPath(path),
       modelPaths(modelPaths),
       showGui(showGui),
+      cameraWidth((cameraWidth <= 0) ? 800 : cameraWidth),
+      cameraHeight((cameraHeight <= 0) ? 600 : cameraHeight),
+      horizontalFov(horizontalFov),
+      zNear(zNear),
+      zFar(zFar),
       widget(NULL),
       running(false),
       currentFrame(new base::samples::frame::Frame())
@@ -96,8 +102,11 @@ void Vizkit3dWorld::run() {
         //remove the close button from window title
         widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowCloseButtonHint); //remove close button from windows title
         widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowMaximizeButtonHint); //remove maximize button from windows title
-        widget->setFixedSize(800, 600); //set the window size
+        widget->setFixedSize(cameraWidth, cameraHeight); //set the window size
+        widget->setCameraManipulator(vizkit3d::TRACKBALL_MANIPULATOR);
         widget->getPropertyWidget()->hide(); //hide the right property widget
+        widget->getView(0)->getCamera()->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
+        applyCameraParams();
 
         while (app->startingUp()) usleep(100);
 
@@ -250,6 +259,7 @@ vizkit3d::RobotVisualization* Vizkit3dWorld::robotVizFromSdfModel(sdf::ElementPt
 
     std::string prefix;
     std::string modelstr = "<sdf version='" +  version + "'>" + sdf_model->ToString(prefix) + "</sdf>";
+
     sdf::SDF sdf;
     sdf.SetFromString(modelstr);
     robotViz->loadFromString(QString(sdf.ToString().c_str()), QString("sdf"));
@@ -326,10 +336,15 @@ void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sou
 void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sourceFrame, QVector3D position, QQuaternion orientation) {
 
     if (widget) {
-        widget->setTransformation(QString::fromStdString(targetFrame),
-                                  QString::fromStdString(sourceFrame),
-                                  position,
-                                  orientation);
+        if (!targetFrame.empty() && !sourceFrame.empty()){
+            widget->setTransformation(QString::fromStdString(targetFrame),
+                                      QString::fromStdString(sourceFrame),
+                                      position,
+                                      orientation);
+        }
+        else {
+            LOG_WARN("it is necessary to inform the target and source frames.");
+        }
     }
 }
 
@@ -354,22 +369,42 @@ void Vizkit3dWorld::setTransformation(base::samples::RigidBodyState rbs) {
     app->postEvent(customEventReceiver, evt);
 }
 
-void Vizkit3dWorld::setCameraPos(base::samples::RigidBodyState pose) {
-    osgViewer::View *view = widget->getView(0);
+void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose) {
 
-    osg::Vec3d pos; //camera position
-    osg::Quat rot; //camera rotation
 
-    //convert RigidBodyState to osg::Matrixd
-    osg::Matrixd m;
-    m.setTrans(osg::Vec3f(pose.position.x(), pose.position.y(), pose.position.z()));
-    m.setRotate(osg::Quat(pose.orientation.x(),
-                          pose.orientation.y(),
-                          pose.orientation.z(),
-                          pose.orientation.w()));
+    /**
+     * set the camera pose
+     */
+    osg::Matrixd poseMatrix;
+    poseMatrix.setTrans(osg::Vec3(pose.position.x(), pose.position.y(), pose.position.z()));
+    poseMatrix.setRotate(osg::Quat(pose.orientation.x(), pose.orientation.y(), pose.orientation.z(), pose.orientation.w()));
+    poseMatrix.invert(poseMatrix);
 
-    osgGA::StandardManipulator *manipulator = dynamic_cast<osgGA::StandardManipulator*>(view->getCameraManipulator());
-    manipulator->setByMatrix(m);
+    /**
+     * Apply the camera pose
+     * Set the camera direction to:
+     * - X forward
+     * - Y left
+     * - Z up
+     */
+    osg::Matrixd m = poseMatrix *
+                     osg::Matrixd::rotate(M_PI_2, osg::Vec3(0.0, 0.0, 1.0)) *
+                     osg::Matrixd::rotate(-M_PI_2, osg::Vec3(1.0, 0.0, 0.0));
+
+
+
+    /**
+     * Get the camera position
+     */
+    osg::Vec3 eye, center, up;
+    m.getLookAt(eye, center, up);
+
+    /**
+     * Set the new camera position
+     */
+    widget->setCameraEye(eye.x(), eye.y(), eye.z());
+    widget->setCameraLookAt(center.x(), center.y(), center.z());
+    widget->setCameraUp(up.x(), up.y(), up.z());
 }
 
 
@@ -425,6 +460,21 @@ base::samples::frame::Frame* Vizkit3dWorld::grabFrame()
     cvtQImageToFrame(image, *currentFrame, (widget->isVisible() && !widget->isMinimized()));
     currentFrame->time = base::Time::now();
     return currentFrame;
+}
+
+void Vizkit3dWorld::setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar) {
+    this->cameraWidth = cameraWidth;
+    this->cameraHeight = cameraHeight;
+    this->horizontalFov = horizontalFov;
+    this->zNear = zNear;
+    this->zFar = zFar;
+    applyCameraParams();
+}
+
+void Vizkit3dWorld::applyCameraParams() {
+    double aspectRatio = cameraWidth/cameraHeight;
+    double fovy =  osg::DegreesToRadians(horizontalFov) / aspectRatio;
+    widget->getView(0)->getCamera()->setProjectionMatrixAsPerspective(osg::RadiansToDegrees(fovy), aspectRatio, zNear, zFar);
 }
 
 }

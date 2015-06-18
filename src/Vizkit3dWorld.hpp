@@ -43,7 +43,9 @@ public:
      */
     Vizkit3dWorld(std::string path = std::string(""),
                   std::vector<std::string> modelPaths = std::vector<std::string>(),
-                  bool showGui = false);
+                  bool showGui = false, int cameraWidth = 800, int cameraHeight = 600,
+                  double horizontalFov = 60.0,
+                  double zNear = 0.01, double zFar = 1000.0);
 
     /**
      * Vizkit3dWorld destructor
@@ -89,7 +91,7 @@ public:
      *
      * @param pose: the camera position
      */
-    void setCameraPos(base::samples::RigidBodyState pose);
+    void setCameraPose(base::samples::RigidBodyState pose);
 
 
     /**
@@ -142,6 +144,9 @@ public:
      *
      * @return base::samples::frame::Frame* : returns a frame rendered by vizkit3d
      */    base::samples::frame::Frame* grabFrame();
+
+
+     void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar);
 
 protected:
 
@@ -239,6 +244,9 @@ protected:
     void applyTransformation(std::string sourceFrame, std::string targetFrame, QVector3D position, QQuaternion orientation);
 
 
+    void applyCameraParams();
+
+
     /**
      * internal function used to enable or disable grabbing
      *
@@ -266,7 +274,6 @@ protected:
 
     std::map<std::string, sdf::ElementPtr> toSdfElement; //map sdf element using model name
 
-
     /**
      * synchronize the qt event loop thread and another threads
      */
@@ -288,6 +295,15 @@ protected:
      * Used in qt event loop to manager the Qt windows and events
      */
     QApplication *app;
+
+    /**
+     * Camera parameters
+     */
+    int cameraWidth;
+    int cameraHeight;
+    double zNear;
+    double zFar;
+    double horizontalFov;
 };
 
 }
