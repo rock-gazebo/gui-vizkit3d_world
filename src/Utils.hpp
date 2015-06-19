@@ -138,22 +138,5 @@ inline void cvtQImageToFrame(const QImage& src, base::samples::frame::Frame& dst
     }
 }
 
-/**
- * Change the thread priority
- * This functions is used to change the thread priority to max
- * Is used in this program to set Qt event loop thread to max priority
- */
-inline void setthread_priority_max(boost::thread& thread){
-    sched_param param;
-    int policy = SCHED_BATCH;
-
-    param.sched_priority = sched_get_priority_max(policy);
-
-    if (pthread_setschedparam(thread.native_handle(), policy, &param) != 0)
-    {
-       throw std::runtime_error("Unable to change thread priority.");
-    }
-}
-
 
 #endif /* GUI_VIZKIT3D_WORLD_SRC_UTILS_HPP_ */
