@@ -26,6 +26,17 @@ namespace vizkit3d_world {
 typedef std::map<std::string, vizkit3d::RobotVisualization*> RobotVizMap;
 
 /**
+ * Event listener used to intercept the gui creation and destruction inside the event loop thread
+ * This listener is useful, when we need to create and destroy Qt objects (e.g: vizkit3d plugins) inside the same thread of the main thread
+ */
+class EventListener {
+public:
+    virtual void onCreateWorld() = 0;
+    virtual void onDestroyWorld() = 0;
+};
+
+
+/**
  * Vizkit3dWorld
  * set up vizkit3d instance from SDF
  */
@@ -147,6 +158,11 @@ public:
 
 
      void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar);
+
+     /**
+      * set the event listener
+      */
+     void setEventListener(EventListener *listener);
 
 protected:
 
@@ -304,6 +320,12 @@ protected:
     double zNear;
     double zFar;
     double horizontalFov;
+
+    /**
+     * interface used to intercept the the GUI creation and destruction in the event loop thread
+     */
+    EventListener *listener;
+
 };
 
 }
