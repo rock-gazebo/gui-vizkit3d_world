@@ -33,7 +33,8 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPat
       zFar(zFar),
       widget(NULL),
       running(false),
-      currentFrame(new base::samples::frame::Frame())
+      currentFrame(new base::samples::frame::Frame()),
+      listener(NULL)
 {
     loadGazeboModelPaths(modelPaths);
 }
@@ -103,8 +104,6 @@ void Vizkit3dWorld::run() {
         widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowCloseButtonHint); //remove close button from windows title
         widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowMaximizeButtonHint); //remove maximize button from windows title
         widget->setFixedSize(cameraWidth, cameraHeight); //set the window size
-        widget->setCameraManipulator(vizkit3d::TRACKBALL_MANIPULATOR);
-        widget->getPropertyWidget()->hide(); //hide the right property widget
         widget->getView(0)->getCamera()->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
         applyCameraParams();
 
@@ -118,7 +117,20 @@ void Vizkit3dWorld::run() {
         //apply the tranformations in each model
         applyTransformations();
 
+        if (listener) {
+            /**
+             * dispatch onCreateWorld
+             * It is recommended to create plugins that will be added to vizkit3d world inside the onCreateWorld function
+             */
+            listener->onCreateWorld();
+        }
+
+        widget->setAxes(false);
+        widget->setAxesLabels(false);
+        widget->getPropertyWidget()->hide(); //hide the right property widget
+
         if (showGui) {
+            widget->setCameraManipulator(vizkit3d::TRACKBALL_MANIPULATOR);
             widget->show();
         }
         else {
@@ -146,6 +158,14 @@ void Vizkit3dWorld::run() {
         cond.wait(lock);
         cond.notify_all();
         app->processEvents(flags);
+    }
+
+    if (listener) {
+        /**
+         * dispatch onDestroyWorld
+         * It is recommended to destroy plugins that will be added to vizkit3d world inside the onCreateWorld function
+         */
+        listener->onDestroyWorld();
     }
 
     delete widget;
@@ -341,6 +361,8 @@ void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sou
                                       QString::fromStdString(sourceFrame),
                                       position,
                                       orientation);
+
+            widget->setTransformer(false);
         }
         else {
             LOG_WARN("it is necessary to inform the target and source frames.");
@@ -361,6 +383,8 @@ void Vizkit3dWorld::customEvent(QEvent *e) {
         grabbedImage = widget->grab();
     }
 }
+
+
 
 void Vizkit3dWorld::setTransformation(base::samples::RigidBodyState rbs) {
     //the function setTransformation must be called from Qt event loop thread
@@ -475,6 +499,10 @@ void Vizkit3dWorld::applyCameraParams() {
     double aspectRatio = cameraWidth/cameraHeight;
     double fovy =  osg::DegreesToRadians(horizontalFov) / aspectRatio;
     widget->getView(0)->getCamera()->setProjectionMatrixAsPerspective(osg::RadiansToDegrees(fovy), aspectRatio, zNear, zFar);
+}
+
+void Vizkit3dWorld::setEventListener(EventListener *l){
+    listener = l;
 }
 
 }
