@@ -154,7 +154,8 @@ public:
      * grab image from vizkit3d
      *
      * @return base::samples::frame::Frame* : returns a frame rendered by vizkit3d
-     */    base::samples::frame::Frame* grabFrame();
+     */
+    void grabFrame(base::samples::frame::Frame& frame);
 
 
      void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar);
@@ -271,7 +272,6 @@ protected:
     void enableGrabbing(bool value);
 
     QImage grabbedImage; //image grabbed
-    base::samples::frame::Frame *currentFrame; //store the last frame grabbed
 
     /**
      * Intercept the Qt custom events

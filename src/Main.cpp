@@ -22,7 +22,8 @@ int main(int argc, char** argv) {
     g_world->initialize();
     g_world->postEnableGrabbing();
 
-    base::samples::frame::Frame* frame = g_world->grabFrame();
+    base::samples::frame::Frame* frame = new base::samples::frame::Frame();
+    g_world->grabFrame(*frame);
     cv::Mat mat = frame_helper::FrameHelper::convertToCvMat(*frame);
 
     cv::imwrite("cvfile.png", mat);
