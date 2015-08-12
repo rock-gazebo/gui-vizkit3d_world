@@ -33,7 +33,6 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPat
       zFar(zFar),
       widget(NULL),
       running(false),
-      currentFrame(new base::samples::frame::Frame()),
       listener(NULL)
 {
     loadGazeboModelPaths(modelPaths);
@@ -477,13 +476,10 @@ QImage Vizkit3dWorld::grabImage()
 
 //grab frame
 //convert QImage to base::samples::frame::Frame
-base::samples::frame::Frame* Vizkit3dWorld::grabFrame()
+void Vizkit3dWorld::grabFrame(base::samples::frame::Frame& frame)
 {
     QImage image = grabImage();
-
-    cvtQImageToFrame(image, *currentFrame, (widget->isVisible() && !widget->isMinimized()));
-    currentFrame->time = base::Time::now();
-    return currentFrame;
+    cvtQImageToFrame(image, frame, (widget->isVisible() && !widget->isMinimized()));
 }
 
 void Vizkit3dWorld::setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar) {
