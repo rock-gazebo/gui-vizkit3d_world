@@ -2,16 +2,13 @@ rock_find_cmake(Boost REQUIRED COMPONENTS system thread date_time chrono)
 
 rock_library(vizkit3d_world
     SOURCES 
-        Events.cpp
         Vizkit3dWorld.cpp
 
     MOC 
-        Events.hpp
         Vizkit3dWorld.hpp
 
     HEADERS
         Utils.hpp
-        Events.hpp
         Vizkit3dWorld.hpp
 
     LIBS

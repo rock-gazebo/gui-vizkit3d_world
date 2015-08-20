@@ -9,7 +9,6 @@
 #include <QString>
 #include <QtGui>
 #include <QtCore>
-#include <QEvent>
 
 #include <boost/algorithm/string.hpp>
 #include <vizkit3d_world/Vizkit3dWorld.hpp>
@@ -19,175 +18,56 @@
 
 namespace vizkit3d_world {
 
-Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPaths, bool showGui,
+Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPaths,
                             int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar)
-    : worldPath(path),
-      modelPaths(modelPaths),
-      showGui(showGui),
-      cameraWidth((cameraWidth <= 0) ? 800 : cameraWidth),
-      cameraHeight((cameraHeight <= 0) ? 600 : cameraHeight),
-      horizontalFov(horizontalFov),
-      zNear(zNear),
-      zFar(zFar),
-      widget(NULL),
-      running(false),
-      listener(NULL)
+    : worldPath(path)
+    , widget(NULL)
+    , modelPaths(modelPaths)
+    , app(NULL)
+    , cameraWidth((cameraWidth <= 0) ? 800 : cameraWidth)
+    , cameraHeight((cameraHeight <= 0) ? 600 : cameraHeight)
+    , zNear(zNear)
+    , zFar(zFar)
+    , horizontalFov(horizontalFov)
 {
     loadGazeboModelPaths(modelPaths);
+
+    int argc = 1;
+    char const*argv[] = { "vizkit3d_world" };
+    app = new QApplication(argc, const_cast<char**>(argv));
+
+    //main widget to store the plugins and performs the GUI events
+    widget = new vizkit3d::Vizkit3DWidget();
+
+    widget->setFixedSize(cameraWidth, cameraHeight); //set the window size
+    widget->getView(0)->getCamera()->
+        setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
+    widget->setAxes(false);
+    widget->setAxesLabels(false);
+    widget->getPropertyWidget()->hide(); //hide the right property widget
+    applyCameraParams();
+
+    //load the world sdf file and created the vizkit3d::RobotVisualization models
+    //It is necessary to create the vizkit3d plugins in the same thread of QApplication
+    loadFromFile(worldPath);
+    attachPlugins();
+
+    //apply the tranformations in each model
+    applyTransformations();
+
+    widget->setCameraManipulator(vizkit3d::NO_MANIPULATOR);
 }
 
 Vizkit3dWorld::~Vizkit3dWorld()
 {
-    deinitialize();
-}
-
-void Vizkit3dWorld::initialize() {
-
-    if (running) {
-        return;
-    }
-
-    // start the event loop thread
-    boost::mutex::scoped_lock lock(mutex);
-    guiThread = boost::thread( boost::bind( &Vizkit3dWorld::run, this ));
-
-    //wait until the settings is finished in the event loop thread
-    cond.wait(lock);
-}
-
-void Vizkit3dWorld::deinitialize() {
-
-    if (running) {
-        { //finish Qt event loop thread
-            boost::mutex::scoped_lock lock(mutex);
-
-            appQuit = true;
-            cond.notify_all();
-            cond.wait(lock);
-        }
-
-        app->closeAllWindows();
-
-        //close all openned windows
-
-        //the correct way is to use guiThread.join()
-        //but if showGui is "false" then the QApplication::exec is frozen
-        //to solve this problem join the thread for 1000
-        guiThread.try_join_for(boost::chrono::milliseconds(1000));
-    }
-}
-
-/**
- * Thread procedure with Qt event loop thread
- */
-void Vizkit3dWorld::run() {
-    boost::mutex::scoped_lock lock(mutex);
-
-    QEventLoop::ProcessEventsFlags flags = QEventLoop::ExcludeSocketNotifiers;
-
-    { //start QApplication, vizkit3d and load SDF models
-        int argc = 1;
-        char *argv[] = { "vizkit3d_world" };
-
-        app = new QApplication(argc, argv);
-
-        //intercept the custom events
-        customEventReceiver = new events::CustomEventReceiver(this);
-
-        //main widget to store the plugins and performs the GUI events
-        widget = new vizkit3d::Vizkit3DWidget();
-
-        //remove the close button from window title
-        widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowCloseButtonHint); //remove close button from windows title
-        widget->setWindowFlags(widget->windowFlags() & ~Qt::WindowMaximizeButtonHint); //remove maximize button from windows title
-        widget->setFixedSize(cameraWidth, cameraHeight); //set the window size
-        widget->getView(0)->getCamera()->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
-        applyCameraParams();
-
-        while (app->startingUp()) usleep(100);
-
-        //load the world sdf file and created the vizkit3d::RobotVisualization models
-        //It is necessary to create the vizkit3d plugins in the same thread of QApplication
-        loadFromFile(worldPath);
-        attachPlugins();
-
-        //apply the tranformations in each model
-        applyTransformations();
-
-        if (listener) {
-            /**
-             * dispatch onCreateWorld
-             * It is recommended to create plugins that will be added to vizkit3d world inside the onCreateWorld function
-             */
-            listener->onCreateWorld();
-        }
-
-        widget->setAxes(false);
-        widget->setAxesLabels(false);
-        widget->getPropertyWidget()->hide(); //hide the right property widget
-
-        if (showGui) {
-            widget->setCameraManipulator(vizkit3d::TRACKBALL_MANIPULATOR);
-            widget->show();
-        }
-        else {
-            widget->setCameraManipulator(vizkit3d::NO_MANIPULATOR);
-            /**
-             * if the widget is not showing, not process the user input events
-             */
-            flags |= QEventLoop::ExcludeUserInputEvents;
-        }
-
-        running = true;
-        appQuit = false;
-    }
-
-    /**
-     * custom Qt event loop
-     *
-     * blocking wait for notification
-     * when notification is received process the Qt events
-     */
-    cond.notify_all();
-
-    while (!appQuit)
-    {
-        //block the thread until receiving a notification
-        cond.wait(lock);
-        cond.notify_all();
-        app->processEvents(flags);
-    }
-
-    if (listener) {
-        /**
-         * dispatch onDestroyWorld
-         * It is recommended to destroy plugins that will be added to vizkit3d world inside the onCreateWorld function
-         */
-        listener->onDestroyWorld();
-    }
+    app->closeAllWindows();
+    app->quit();
 
     delete widget;
-    widget = NULL;
     delete app;
-    app = NULL;
     toSdfElement.clear();
     robotVizMap.clear();
-    running = false;
-
-    cond.notify_all();
 }
-
-void Vizkit3dWorld::notifyEvents()
-{
-    //this mutex is used to synchronize event loop thread
-    //this mutex also doesn't allow to execute notifyEvents in parallel
-    boost::mutex::scoped_lock lock(mutex);
-    //notify event loop thread unblocking it
-    cond.notify_all();
-    //wait until process events is finalized
-    cond.wait(lock);
-}
-
 
 void Vizkit3dWorld::loadFromFile(std::string path) {
     std::ifstream file(path.c_str());
@@ -368,32 +248,13 @@ void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sou
     }
 }
 
-void Vizkit3dWorld::customEvent(QEvent *e) {
-    if (e->type() == events::TransformationEventId) {
-        events::TransformationEvent *te = (events::TransformationEvent*)e;
-        applyTransformation(te->pose);
-    }
-    else if (e->type() == events::GrabbingEventId) {
-        events::GrabbingEvent *ge = (events::GrabbingEvent*)e;
-        enableGrabbing(ge->enableGrabbing);
-    }
-    else if (e->type() == events::GrabEventId) {
-        grabbedImage = widget->grab();
-    }
-}
-
 
 
 void Vizkit3dWorld::setTransformation(base::samples::RigidBodyState rbs) {
-    //the function setTransformation must be called from Qt event loop thread
-    //if setTransformation was called in another thread the application breaks
-    QEvent *evt = new events::TransformationEvent(rbs);
-    app->postEvent(customEventReceiver, evt);
+    applyTransformation(rbs);
 }
 
 void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose) {
-
-
     /**
      * set the camera pose
      */
@@ -430,47 +291,20 @@ void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose) {
 }
 
 
-//post event to enable grabbing
-void Vizkit3dWorld::postEnableGrabbing() {
-    QEvent *evt = new events::GrabbingEvent(true);
-    app->postEvent(customEventReceiver, evt);
-}
-
-
-//post event to disable grabbing
-void Vizkit3dWorld::postDisableGrabbing()
-{
-    QEvent *evt = new events::GrabbingEvent(false);
-    app->postEvent(customEventReceiver, evt);
-}
-
 //internal enable and disable grabbing
-void Vizkit3dWorld::enableGrabbing(bool value)
+void Vizkit3dWorld::enableGrabbing()
 {
-
-    if (value) {
-        widget->enableGrabbing();
-        grabbedImage = widget->grab();
-    }
-    else {
-        widget->disableGrabbing();
-    }
+    widget->enableGrabbing();
 }
 
-//post event to grab image
-void Vizkit3dWorld::postGrabImage()
+void Vizkit3dWorld::disableGrabbing()
 {
-    QEvent *evt = new QEvent(QEvent::Type(events::GrabEventId));
-    app->postEvent(customEventReceiver, evt);
+    widget->disableGrabbing();
 }
 
-//grab image
-//post event to grab image and notify event loop
 QImage Vizkit3dWorld::grabImage()
 {
-    postGrabImage();
-    notifyEvents();
-    return grabbedImage;
+    return widget->grab();
 }
 
 //grab frame
@@ -494,10 +328,6 @@ void Vizkit3dWorld::applyCameraParams() {
     double aspectRatio = cameraWidth/cameraHeight;
     double fovy =  osg::DegreesToRadians(horizontalFov) / aspectRatio;
     widget->getView(0)->getCamera()->setProjectionMatrixAsPerspective(osg::RadiansToDegrees(fovy), aspectRatio, zNear, zFar);
-}
-
-void Vizkit3dWorld::setEventListener(EventListener *l){
-    listener = l;
 }
 
 }
