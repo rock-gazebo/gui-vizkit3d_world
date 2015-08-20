@@ -14,8 +14,6 @@
 #include <boost/algorithm/string.hpp>
 #include <vizkit3d_world/Vizkit3dWorld.hpp>
 #include <osgViewer/View>
-#include <osgGA/CameraManipulator>
-#include <osgGA/FirstPersonManipulator>
 #include <base/Logging.hpp>
 #include "Utils.hpp"
 
@@ -133,6 +131,7 @@ void Vizkit3dWorld::run() {
             widget->show();
         }
         else {
+            widget->setCameraManipulator(vizkit3d::NO_MANIPULATOR);
             /**
              * if the widget is not showing, not process the user input events
              */
