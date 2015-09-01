@@ -18,16 +18,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    g_world = new vizkit3d_world::Vizkit3dWorld(argv[1], std::vector<std::string>(), false);
-    g_world->initialize();
-    g_world->postEnableGrabbing();
+    vizkit3d_world::Vizkit3dWorld g_world(argv[1], std::vector<std::string>(), false);
+    g_world.enableGrabbing();
 
     base::samples::frame::Frame* frame = new base::samples::frame::Frame();
-    g_world->grabFrame(*frame);
+    g_world.grabFrame(*frame);
     cv::Mat mat = frame_helper::FrameHelper::convertToCvMat(*frame);
-
     cv::imwrite("cvfile.png", mat);
-    g_world->deinitialize();
 
     return 0;
 

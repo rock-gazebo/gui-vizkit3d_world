@@ -13,28 +13,12 @@
 #include <kdl_parser/kdl_parser.hpp>
 #include <vizkit3d/Vizkit3DWidget.hpp>
 #include <vizkit3d/RobotVisualization.hpp>
-#include <vizkit3d/QtThreadedWidget.hpp>
-#include <boost/thread/thread.hpp>
-#include <boost/thread/mutex.hpp>
-#include <base/samples/frame.h>
+#include <base/samples/Frame.hpp>
 #include <map>
-
-#include "Events.hpp"
 
 namespace vizkit3d_world {
 
 typedef std::map<std::string, vizkit3d::RobotVisualization*> RobotVizMap;
-
-/**
- * Event listener used to intercept the gui creation and destruction inside the event loop thread
- * This listener is useful, when we need to create and destroy Qt objects (e.g: vizkit3d plugins) inside the same thread of the main thread
- */
-class EventListener {
-public:
-    virtual void onCreateWorld() = 0;
-    virtual void onDestroyWorld() = 0;
-};
-
 
 /**
  * Vizkit3dWorld
@@ -50,11 +34,10 @@ public:
      *
      * @param path: the string with the path to the sdf world file
      * @param modelPaths: list with paths to models
-     * @param showGui: show or not the user interface
      */
     Vizkit3dWorld(std::string path = std::string(""),
                   std::vector<std::string> modelPaths = std::vector<std::string>(),
-                  bool showGui = false, int cameraWidth = 800, int cameraHeight = 600,
+                  int cameraWidth = 800, int cameraHeight = 600,
                   double horizontalFov = 60.0,
                   double zNear = 0.01, double zFar = 1000.0);
 
@@ -62,21 +45,6 @@ public:
      * Vizkit3dWorld destructor
      */
     virtual ~Vizkit3dWorld();
-
-    /**
-     * Initialize the vizkit3d world and start the Qt event loop thread
-     */
-    void initialize();
-
-    /**
-     * Stop the event loop thread
-     */
-    void deinitialize();
-
-    /**
-     * Wait until the event loop thread stopped
-     */
-    void wait();
 
     RobotVizMap getRobotVizMap();
 
@@ -104,44 +72,24 @@ public:
      */
     void setCameraPose(base::samples::RigidBodyState pose);
 
+    /**
+     * Enable grabbing
+     *
+     * @param value: enable grabbing if true, otherwise, disable grabbing
+     */
+    void enableGrabbing();
 
     /**
-     * send a event signal to qt event loop to enable grabbing
+     * Disable grabbing
+     *
+     * @param value: enable grabbing if true, otherwise, disable grabbing
      */
-    void postEnableGrabbing();
-
-
-    /**
-     * send a event signal to qt event loop to disable grabbing
-     */
-    void postDisableGrabbing();
+    void disableGrabbing();
 
     /**
      * @return vizkit3d::Vizkit3DWidget: render the scene
      */
     vizkit3d::Vizkit3DWidget *getWidget() { return widget; }
-
-
-    /**
-     * send event signal to qt event loop to grab render image
-     */
-    void postGrabImage();
-
-
-    /**
-     * this function notifies the event loop to process events
-     * the event loop thread is blocked until receive a signal to process the events
-     */
-    void notifyEvents();
-
-
-    /**
-     * returns if the qt event loop thread is running
-     *
-     * @return bool: true if thread is running
-     */
-    bool isRunning() { return running; }
-
 
     /**
      * grab image from vizkit3d
@@ -159,11 +107,6 @@ public:
 
 
      void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar);
-
-     /**
-      * set the event listener
-      */
-     void setEventListener(EventListener *listener);
 
 protected:
 
@@ -263,25 +206,10 @@ protected:
 
     void applyCameraParams();
 
-
-    /**
-     * internal function used to enable or disable grabbing
-     *
-     * @param value: enable grabbing if true, otherwise, disable grabbing
-     */
-    void enableGrabbing(bool value);
-
     QImage grabbedImage; //image grabbed
-
-    /**
-     * Intercept the Qt custom events
-     */
-    void customEvent(QEvent *event);
 
     std::string worldPath; //path to sdf file that describe the scene
     std::string worldName; //stores the world name
-
-    bool showGui; //used to show or not the user interfaces
 
     RobotVizMap robotVizMap; //stores the vizkit3d::RobotVisualization and uses the model name as key
     vizkit3d::Vizkit3DWidget *widget; //this widget stores and manage the robot models plugins
@@ -289,23 +217,6 @@ protected:
     std::vector<std::string> modelPaths; //stores paths with gazebo models
 
     std::map<std::string, sdf::ElementPtr> toSdfElement; //map sdf element using model name
-
-    /**
-     * synchronize the qt event loop thread and another threads
-     */
-    boost::mutex mutex;
-    boost::condition_variable cond;
-
-    boost::thread guiThread; //event loop thread
-
-    bool appQuit; //stop event loop thread if is true
-    bool running; //check if event loop is running
-
-    /**
-     * Used to receive the custom events and sends to Vizkit3dWorld
-     */
-    events::CustomEventReceiver *customEventReceiver;
-    friend class events::CustomEventReceiver;
 
     /**
      * Used in qt event loop to manager the Qt windows and events
@@ -320,11 +231,6 @@ protected:
     double zNear;
     double zFar;
     double horizontalFov;
-
-    /**
-     * interface used to intercept the the GUI creation and destruction in the event loop thread
-     */
-    EventListener *listener;
 
 };
 
