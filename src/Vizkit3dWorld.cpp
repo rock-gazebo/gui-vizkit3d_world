@@ -37,7 +37,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPat
     app = new QApplication(argc, const_cast<char**>(argv));
 
     //main widget to store the plugins and performs the GUI events
-    widget = new vizkit3d::Vizkit3DWidget(NULL, "world_osg", false);
+    widget = new vizkit3d::Vizkit3DWidget(NULL, cameraWidth, cameraHeight, "world_osg", false);
 
     widget->setFixedSize(cameraWidth, cameraHeight); //set the window size
     widget->getView(0)->getCamera()->
