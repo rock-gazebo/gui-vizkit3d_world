@@ -270,11 +270,9 @@ void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose) {
      * - Y left
      * - Z up
      */
-    osg::Matrixd m = poseMatrix *
-                     osg::Matrixd::rotate(M_PI_2, osg::Vec3(0.0, 0.0, 1.0)) *
-                     osg::Matrixd::rotate(-M_PI_2, osg::Vec3(1.0, 0.0, 0.0));
-
-
+    osg::Matrixd m = poseMatrix* 
+                       osg::Matrixd::rotate(M_PI, osg::Vec3(1.0, 0.0, 0.0))*
+                       osg::Matrixd::rotate(M_PI, osg::Vec3(0.0, 0.0, 1.0));
 
     /**
      * Get the camera position
