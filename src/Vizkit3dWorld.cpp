@@ -18,8 +18,12 @@
 
 namespace vizkit3d_world {
 
-Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPaths,
-                            int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar)
+Vizkit3dWorld::Vizkit3dWorld(std::string path, 
+                            std::vector<std::string> modelPaths,
+                            std::vector<std::string> ignoreSdfList,
+                            int cameraWidth, int cameraHeight, 
+                            double horizontalFov, 
+                            double zNear, double zFar)
     : worldPath(path)
     , widget(NULL)
     , modelPaths(modelPaths)
@@ -47,6 +51,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPat
     widget->getPropertyWidget()->hide(); //hide the right property widget
     applyCameraParams();
 
+    loadIgnoreSdfList(ignoreSdfList);
     //load the world sdf file and created the vizkit3d::RobotVisualization models
     //It is necessary to create the vizkit3d plugins in the same thread of QApplication
     loadFromFile(worldPath);
@@ -114,6 +119,10 @@ void Vizkit3dWorld::loadGazeboModelPaths(std::vector<std::string> modelPaths) {
     }
 }
 
+void Vizkit3dWorld::loadIgnoreSdfList(std::vector<std::string> ignoreSdfList) {
+    this->ignoreSdfList = ignoreSdfList;
+}
+
 void Vizkit3dWorld::makeWorld(sdf::ElementPtr sdf, std::string version) {
 
     if (sdf->HasElement("model")) {
@@ -141,8 +150,10 @@ void Vizkit3dWorld::makeWorld(sdf::ElementPtr sdf, std::string version) {
                 modelName = buf.str();
             }
 
-            vizkit3d::RobotVisualization* robotViz = robotVizFromSdfModel(modelElem, modelName, version);
-            robotVizMap.insert(std::make_pair(modelName, robotViz));
+            if(std::find(ignoreSdfList.begin(), ignoreSdfList.end(), modelName) == ignoreSdfList.end()){
+                vizkit3d::RobotVisualization* robotViz = robotVizFromSdfModel(modelElem, modelName, version);
+                robotVizMap.insert(std::make_pair(modelName, robotViz));
+            }
 
             modelElem = modelElem->GetNextElement("model");
 
