@@ -18,8 +18,12 @@
 
 namespace vizkit3d_world {
 
-Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPaths,
-                            int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar)
+Vizkit3dWorld::Vizkit3dWorld(std::string path, 
+                            std::vector<std::string> modelPaths,
+                            std::vector<std::string> ignoredModels,
+                            int cameraWidth, int cameraHeight, 
+                            double horizontalFov, 
+                            double zNear, double zFar)
     : worldPath(path)
     , widget(NULL)
     , modelPaths(modelPaths)
@@ -47,6 +51,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path, std::vector<std::string> modelPat
     widget->getPropertyWidget()->hide(); //hide the right property widget
     applyCameraParams();
 
+    this->ignoredModels = ignoredModels;
     //load the world sdf file and created the vizkit3d::RobotVisualization models
     //It is necessary to create the vizkit3d plugins in the same thread of QApplication
     loadFromFile(worldPath);
@@ -141,8 +146,10 @@ void Vizkit3dWorld::makeWorld(sdf::ElementPtr sdf, std::string version) {
                 modelName = buf.str();
             }
 
-            vizkit3d::RobotVisualization* robotViz = robotVizFromSdfModel(modelElem, modelName, version);
-            robotVizMap.insert(std::make_pair(modelName, robotViz));
+            if(std::find(ignoredModels.begin(), ignoredModels.end(), modelName) == ignoredModels.end()){
+                vizkit3d::RobotVisualization* robotViz = robotVizFromSdfModel(modelElem, modelName, version);
+                robotVizMap.insert(std::make_pair(modelName, robotViz));
+            }
 
             modelElem = modelElem->GetNextElement("model");
 
@@ -270,11 +277,9 @@ void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose) {
      * - Y left
      * - Z up
      */
-    osg::Matrixd m = poseMatrix *
-                     osg::Matrixd::rotate(M_PI_2, osg::Vec3(0.0, 0.0, 1.0)) *
-                     osg::Matrixd::rotate(-M_PI_2, osg::Vec3(1.0, 0.0, 0.0));
-
-
+    osg::Matrixd m = poseMatrix* 
+                       osg::Matrixd::rotate(M_PI, osg::Vec3(1.0, 0.0, 0.0))*
+                       osg::Matrixd::rotate(M_PI, osg::Vec3(0.0, 0.0, 1.0));
 
     /**
      * Get the camera position

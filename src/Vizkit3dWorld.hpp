@@ -24,9 +24,7 @@ typedef std::map<std::string, vizkit3d::RobotVisualization*> RobotVizMap;
  * Vizkit3dWorld
  * set up vizkit3d instance from SDF
  */
-class Vizkit3dWorld : public QObject {
-    Q_OBJECT
-
+class Vizkit3dWorld {
 public:
 
     /**
@@ -37,6 +35,7 @@ public:
      */
     Vizkit3dWorld(std::string path = std::string(""),
                   std::vector<std::string> modelPaths = std::vector<std::string>(),
+                  std::vector<std::string> ignoredModels = std::vector<std::string>(),
                   int cameraWidth = 800, int cameraHeight = 600,
                   double horizontalFov = 60.0,
                   double zNear = 0.01, double zFar = 1000.0);
@@ -206,6 +205,7 @@ protected:
 
     void applyCameraParams();
 
+
     QImage grabbedImage; //image grabbed
 
     std::string worldPath; //path to sdf file that describe the scene
@@ -215,6 +215,8 @@ protected:
     vizkit3d::Vizkit3DWidget *widget; //this widget stores and manage the robot models plugins
 
     std::vector<std::string> modelPaths; //stores paths with gazebo models
+
+    std::vector<std::string> ignoredModels; //list of sdf that will be ignored by the robot visualization
 
     std::map<std::string, sdf::ElementPtr> toSdfElement; //map sdf element using model name
 
