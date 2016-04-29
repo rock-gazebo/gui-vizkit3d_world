@@ -37,7 +37,7 @@ public:
      */
     Vizkit3dWorld(std::string path = std::string(""),
                   std::vector<std::string> modelPaths = std::vector<std::string>(),
-                  std::vector<std::string> ignoreSdfList = std::vector<std::string>(),
+                  std::vector<std::string> ignoredModels = std::vector<std::string>(),
                   int cameraWidth = 800, int cameraHeight = 600,
                   double horizontalFov = 60.0,
                   double zNear = 0.01, double zFar = 1000.0);
@@ -134,12 +134,6 @@ protected:
     void loadGazeboModelPaths(std::vector<std::string> modelPaths = std::vector<std::string>());
 
     /**
-     * Load the list of the models that we do not want to have the visual nor collision elements
-     * @params list of model's name
-     */
-    void loadIgnoreSdfList(std::vector<std::string> ignoreSdfList);
-
-    /**
      * attach vizkit3d::RobotVisualization plugins to Vizkit3dWidget
      */
     void attachPlugins();
@@ -224,7 +218,7 @@ protected:
 
     std::vector<std::string> modelPaths; //stores paths with gazebo models
 
-    std::vector<std::string> ignoreSdfList; //list of sdf that will be ignored by the robot visualization
+    std::vector<std::string> ignoredModels; //list of sdf that will be ignored by the robot visualization
 
     std::map<std::string, sdf::ElementPtr> toSdfElement; //map sdf element using model name
 
