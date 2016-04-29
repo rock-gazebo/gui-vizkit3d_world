@@ -24,9 +24,7 @@ typedef std::map<std::string, vizkit3d::RobotVisualization*> RobotVizMap;
  * Vizkit3dWorld
  * set up vizkit3d instance from SDF
  */
-class Vizkit3dWorld : public QObject {
-    Q_OBJECT
-
+class Vizkit3dWorld {
 public:
 
     /**

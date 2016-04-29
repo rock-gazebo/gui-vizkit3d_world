@@ -4,9 +4,6 @@ rock_library(vizkit3d_world
     SOURCES 
         Vizkit3dWorld.cpp
 
-    MOC 
-        Vizkit3dWorld.hpp
-
     HEADERS
         Utils.hpp
         Vizkit3dWorld.hpp
