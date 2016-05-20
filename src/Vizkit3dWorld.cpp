@@ -262,36 +262,15 @@ void Vizkit3dWorld::setTransformation(base::samples::RigidBodyState rbs) {
 }
 
 void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose) {
-    /**
-     * set the camera pose
-     */
-    osg::Matrixd poseMatrix;
-    poseMatrix.setTrans(osg::Vec3(pose.position.x(), pose.position.y(), pose.position.z()));
-    poseMatrix.setRotate(osg::Quat(pose.orientation.x(), pose.orientation.y(), pose.orientation.z(), pose.orientation.w()));
-    poseMatrix.invert(poseMatrix);
-
-    /**
-     * Apply the camera pose
-     * Set the camera direction to:
-     * - X forward
-     * - Y left
-     * - Z up
-     */
-    osg::Matrixd m = poseMatrix* 
-                       osg::Matrixd::rotate(M_PI, osg::Vec3(1.0, 0.0, 0.0))*
-                       osg::Matrixd::rotate(M_PI, osg::Vec3(0.0, 0.0, 1.0));
-
-    /**
-     * Get the camera position
-     */
-    osg::Vec3 eye, center, up;
-    m.getLookAt(eye, center, up);
+    Eigen::Vector3d look_at = pose.position + pose.orientation * Eigen::Vector3d::UnitX();
+    Eigen::Vector3d up      = pose.orientation * Eigen::Vector3d::UnitZ();
+    Eigen::Vector3d eye     = pose.position;
 
     /**
      * Set the new camera position
      */
     widget->setCameraEye(eye.x(), eye.y(), eye.z());
-    widget->setCameraLookAt(center.x(), center.y(), center.z());
+    widget->setCameraLookAt(look_at.x(), look_at.y(), look_at.z());
     widget->setCameraUp(up.x(), up.y(), up.z());
 }
 
