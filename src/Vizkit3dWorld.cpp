@@ -90,11 +90,11 @@ void Vizkit3dWorld::loadFromString(const std::string xml) {
         throw std::invalid_argument("unable to load sdf from string " + xml + "\n");
     }
 
-    if (!sdf->root->HasElement("world")) {
+    if (!sdf->Root()->HasElement("world")) {
         throw std::invalid_argument("the SDF doesn't have a <world> tag\n");
     }
 
-    makeWorld(sdf->root->GetElement("world"), sdf->version);
+    makeWorld(sdf->Root()->GetElement("world"), sdf->Version());
 }
 
 void Vizkit3dWorld::loadGazeboModelPaths(std::vector<std::string> modelPaths) {
@@ -216,11 +216,11 @@ void Vizkit3dWorld::applyTransformations() {
 
         sdf::ElementPtr sdfModel = getSdfElement(it->first);
 
-        sdf::Pose pose =  sdfModel->GetElement("pose")->Get<sdf::Pose>();
+        ignition::math::Pose3d pose =  sdfModel->GetElement("pose")->Get<ignition::math::Pose3d>();
 
         applyTransformation(worldName, it->first,
-                            QVector3D(pose.pos.x, pose.pos.y, pose.pos.z),
-                            QQuaternion(pose.rot.w, pose.rot.x, pose.rot.y, pose.rot.z));
+                            QVector3D(pose.Pos().X(), pose.Pos().Y(), pose.Pos().Z()),
+                            QQuaternion(pose.Rot().W(), pose.Rot().X(), pose.Rot().Y(), pose.Rot().Z()));
 
     }
 }
