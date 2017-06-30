@@ -13,7 +13,7 @@
 #include <boost/algorithm/string.hpp>
 #include <vizkit3d_world/Vizkit3dWorld.hpp>
 #include <osgViewer/View>
-#include <base/Logging.hpp>
+#include <base-logging/Logging.hpp>
 #include "Utils.hpp"
 
 namespace vizkit3d_world {

@@ -16,7 +16,7 @@ rock_library(vizkit3d_world
         
     DEPS_PKGCONFIG
         base-types
-        base-lib
+        base-logging
         sdformat
         vizkit3d
         robot_model-viz

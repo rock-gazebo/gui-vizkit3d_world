@@ -7,6 +7,8 @@
   <url>http://</url>
   <logo>http://</logo>
   <depend package="base/cmake" />
+  <depend package="base/types" />
+  <depend package="base/logging" />
     
   <depend package="control/sdformat" />
   <depend package="gui/vizkit3d" />
