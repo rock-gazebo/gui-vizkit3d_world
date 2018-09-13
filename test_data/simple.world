@@ -1,9 +1,8 @@
 <?xml version="1.0" ?>
 <sdf version="1.6">
     <world name="simple">
-        <include>
+        <model name='simple_model'>
             <pose>0 0 0 0 0 0</pose>
-            <uri>model://simple_arm</uri>
-        </include>
+        </model>
     </world>
 </sdf>
