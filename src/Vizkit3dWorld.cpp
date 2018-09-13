@@ -16,6 +16,7 @@
 #include <base-logging/Logging.hpp>
 #include "Utils.hpp"
 #include <kdl_parser/RobotModelFormat.hpp>
+#include <locale.h>     /* struct lconv, setlocale, localeconv */
 
 namespace vizkit3d_world {
 
@@ -35,11 +36,14 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     , zFar(zFar)
     , horizontalFov(horizontalFov)
 {
+    
     loadGazeboModelPaths(modelPaths);
 
     int argc = 1;
     char const*argv[] = { "vizkit3d_world" };
     app = new QApplication(argc, const_cast<char**>(argv));
+    //Qt application changes the locale information, what crashes the sdf initialization
+    setlocale(LC_ALL, "C");
 
     //main widget to store the plugins and performs the GUI events
     widget = new vizkit3d::Vizkit3DWidget(NULL, cameraWidth, cameraHeight, "world_osg", false);
