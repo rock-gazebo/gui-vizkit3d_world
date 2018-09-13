@@ -105,7 +105,7 @@ public:
     void grabFrame(base::samples::frame::Frame& frame);
 
 
-     void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar);
+    void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar);
 
 protected:
 

@@ -15,6 +15,7 @@
 #include <osgViewer/View>
 #include <base-logging/Logging.hpp>
 #include "Utils.hpp"
+#include <kdl_parser/RobotModelFormat.hpp>
 
 namespace vizkit3d_world {
 
@@ -52,7 +53,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     applyCameraParams();
 
     this->ignoredModels = ignoredModels;
-    //load the world sdf file and created the vizkit3d::RobotVisualization models
+    //load the world sdf file and create the vizkit3d::RobotVisualization models
     //It is necessary to create the vizkit3d plugins in the same thread of QApplication
     loadFromFile(worldPath);
     attachPlugins();
@@ -75,9 +76,9 @@ Vizkit3dWorld::~Vizkit3dWorld()
 }
 
 void Vizkit3dWorld::loadFromFile(std::string path) {
-    std::ifstream file(path.c_str());
-    std::string str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    loadFromString(str);
+    std::pair<std::string, int> sdf_string = getRobotModelString(
+        path, kdl_parser::ROBOT_MODEL_FORMAT::ROBOT_MODEL_AUTO);
+    loadFromString(sdf_string.first);
 }
 
 void Vizkit3dWorld::loadFromString(const std::string xml) {
