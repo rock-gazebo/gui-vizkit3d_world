@@ -33,7 +33,7 @@ public:
      * @param path: the string with the path to the sdf world file
      * @param modelPaths: list with paths to models
      */
-    Vizkit3dWorld(std::string path = std::string(""),
+    Vizkit3dWorld(std::string path,
                   std::vector<std::string> modelPaths = std::vector<std::string>(),
                   std::vector<std::string> ignoredModels = std::vector<std::string>(),
                   int cameraWidth = 800, int cameraHeight = 600,
