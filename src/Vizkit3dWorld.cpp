@@ -15,6 +15,8 @@
 #include <osgViewer/View>
 #include <base-logging/Logging.hpp>
 #include "Utils.hpp"
+#include <kdl_parser/RobotModelFormat.hpp>
+#include <locale.h>     /* struct lconv, setlocale, localeconv */
 
 namespace vizkit3d_world {
 
@@ -34,11 +36,14 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     , zFar(zFar)
     , horizontalFov(horizontalFov)
 {
+    
     loadGazeboModelPaths(modelPaths);
 
     int argc = 1;
     char const*argv[] = { "vizkit3d_world" };
     app = new QApplication(argc, const_cast<char**>(argv));
+    //Qt application changes the locale information, what crashes the sdf initialization
+    setlocale(LC_ALL, "C");
 
     //main widget to store the plugins and performs the GUI events
     widget = new vizkit3d::Vizkit3DWidget(NULL, cameraWidth, cameraHeight, "world_osg", false);
@@ -52,7 +57,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     applyCameraParams();
 
     this->ignoredModels = ignoredModels;
-    //load the world sdf file and created the vizkit3d::RobotVisualization models
+    //load the world sdf file and create the vizkit3d::RobotVisualization models
     //It is necessary to create the vizkit3d plugins in the same thread of QApplication
     loadFromFile(worldPath);
     attachPlugins();
@@ -75,9 +80,9 @@ Vizkit3dWorld::~Vizkit3dWorld()
 }
 
 void Vizkit3dWorld::loadFromFile(std::string path) {
-    std::ifstream file(path.c_str());
-    std::string str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    loadFromString(str);
+    std::pair<std::string, int> sdf_string = getRobotModelString(
+        path, kdl_parser::ROBOT_MODEL_FORMAT::ROBOT_MODEL_AUTO);
+    loadFromString(sdf_string.first);
 }
 
 void Vizkit3dWorld::loadFromString(const std::string xml) {

@@ -20,6 +20,7 @@ rock_library(vizkit3d_world
         sdformat
         vizkit3d
         robot_model-viz
+        kdl_parser
 )
 
 rock_executable(vizkit3d_world_bin
