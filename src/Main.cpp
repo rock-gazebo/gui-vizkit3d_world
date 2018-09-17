@@ -6,7 +6,7 @@
 #include <vizkit3d/Vizkit3DWidget.hpp>
 #include <vizkit3d_world/Vizkit3dWorld.hpp>
 #include <opencv/cv.h>
-#include <opencv/highgui.h>
+#include <opencv2/highgui/highgui.hpp>
 #include <frame_helper/FrameHelper.h>
 
 vizkit3d_world::Vizkit3dWorld *g_world = NULL;
