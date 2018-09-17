@@ -13,5 +13,6 @@
   <depend package="control/sdformat" />
   <depend package="gui/vizkit3d" />
   <depend package="gui/robot_model" />
+  <depend package="control/kdl_parser" />
   
 </package>
