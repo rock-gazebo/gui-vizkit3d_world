@@ -209,8 +209,7 @@ protected:
     QImage grabbedImage; //image grabbed
 
     std::string worldPath; //path to sdf file that describe the scene
-    std::string worldName; //stores the world name
-
+    
     RobotVizMap robotVizMap; //stores the vizkit3d::RobotVisualization and uses the model name as key
     vizkit3d::Vizkit3DWidget *widget; //this widget stores and manage the robot models plugins
 

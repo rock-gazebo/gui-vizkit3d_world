@@ -125,9 +125,15 @@ void Vizkit3dWorld::loadGazeboModelPaths(std::vector<std::string> modelPaths) {
 }
 
 void Vizkit3dWorld::makeWorld(sdf::ElementPtr sdf, std::string version) {
-
+    // Transformations reported by rock-gazebo now always use "world" for the world,
+    // regardless of the actual world name. Insert such a frame, but keep a frame
+    // with the actual world name in case someone is feeding data that uses it.
+    std::string worldName = sdf->Get<std::string>("name");
+    if (worldName != "world") {
+        applyTransformation(worldName, "world", QVector3D(), QQuaternion());
+    }
+    
     if (sdf->HasElement("model")) {
-        worldName = sdf->Get<std::string>("name");
 
         std::map<std::string, int> robotVizCountMap;
 
@@ -223,7 +229,7 @@ void Vizkit3dWorld::applyTransformations() {
 
         ignition::math::Pose3d pose =  sdfModel->GetElement("pose")->Get<ignition::math::Pose3d>();
 
-        applyTransformation(worldName, it->first,
+        applyTransformation("world", it->first,
                             QVector3D(pose.Pos().X(), pose.Pos().Y(), pose.Pos().Z()),
                             QQuaternion(pose.Rot().W(), pose.Rot().X(), pose.Rot().Y(), pose.Rot().Z()));
 
