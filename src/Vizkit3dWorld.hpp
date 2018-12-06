@@ -221,7 +221,7 @@ protected:
     std::string worldPath; //path to sdf file that describe the scene
     
     RobotVizMap robotVizMap; //stores the vizkit3d::RobotVisualization and uses the model name as key
-    vizkit3d::Vizkit3DWidget *widget[10]; //this widget stores and manage the robot models plugins
+    std::vector<vizkit3d::Vizkit3DWidget*> widget; //this widget stores and manage the robot models plugins
 
     std::vector<std::string> modelPaths; //stores paths with gazebo models
 

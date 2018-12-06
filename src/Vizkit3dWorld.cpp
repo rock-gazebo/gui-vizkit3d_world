@@ -46,6 +46,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     setlocale(LC_ALL, "C");
 
     //main widget to store the plugins and performs the GUI events
+    widget.reserve(number_of_widgets);
 
     for (int i = 0; i < number_of_widgets; ++i){
     
