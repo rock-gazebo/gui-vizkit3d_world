@@ -38,7 +38,8 @@ public:
                   std::vector<std::string> ignoredModels = std::vector<std::string>(),
                   int cameraWidth = 800, int cameraHeight = 600,
                   double horizontalFov = 60.0,
-                  double zNear = 0.01, double zFar = 1000.0);
+                  double zNear = 0.01, double zFar = 1000.0,
+                  const int number_of_widgets = 1);
 
     /**
      * Vizkit3dWorld destructor
@@ -61,7 +62,7 @@ public:
      * @param pose the pose with transformation. The transformation is
      * relative to the target frame and the source frame
      */
-    void setTransformation(base::samples::RigidBodyState pose);
+    void setTransformation(base::samples::RigidBodyState pose, int widget_number = 0);
 
 
     /***
@@ -69,43 +70,50 @@ public:
      *
      * @param pose: the camera position
      */
-    void setCameraPose(base::samples::RigidBodyState pose);
+    void setCameraPose(base::samples::RigidBodyState pose, int widget_number = 0);
 
     /**
      * Enable grabbing
      *
      * @param value: enable grabbing if true, otherwise, disable grabbing
      */
-    void enableGrabbing();
+    void enableGrabbing(int widget_number = 0);
 
     /**
      * Disable grabbing
      *
      * @param value: enable grabbing if true, otherwise, disable grabbing
      */
-    void disableGrabbing();
+    void disableGrabbing(int widget_number = 0);
 
     /**
      * @return vizkit3d::Vizkit3DWidget: render the scene
      */
-    vizkit3d::Vizkit3DWidget *getWidget() { return widget; }
+    vizkit3d::Vizkit3DWidget *getWidget(int widget_number = 0) { return widget[widget_number]; }
 
     /**
      * grab image from vizkit3d
      *
      * @return QImage: returns a image rendered by vizkit3d
      */
-    QImage grabImage();
+    QImage grabImage(int widget_number = 0);
 
+    /**
+     * it is possible to create more than one widget
+    */
+    const int number_of_widgets;
+    const int getNumberOfWidgets();
+    
     /**
      * grab image from vizkit3d
      *
      * @return base::samples::frame::Frame* : returns a frame rendered by vizkit3d
      */
-    void grabFrame(base::samples::frame::Frame& frame);
+    void grabFrame(base::samples::frame::Frame& frame, int widget_number = 0);
 
 
-    void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar);
+    void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, 
+        double zNear, double zFar, int widget_number = 0);
 
 protected:
 
@@ -171,14 +179,14 @@ protected:
     /**
      * Apply transformation in the each model of the scene
      */
-    void applyTransformations();
+    void applyTransformations(int widget_model);
 
     /**
      * Apply transformation in a model
      *
      * @param pose with transformation
      */
-    void applyTransformation(base::samples::RigidBodyState pose);
+    void applyTransformation(base::samples::RigidBodyState pose, int widget_number);
 
     /**
      * Apply transformation using rock types
@@ -189,7 +197,8 @@ protected:
      * @param orientation: the orientation that will applied in the transformation
      *
      */
-    void applyTransformation(std::string sourceFrame, std::string targetFrame, base::Position position, base::Orientation orientation);
+    void applyTransformation( std::string sourceFrame, std::string targetFrame, 
+            base::Position position, base::Orientation orientation, int widget_number);
 
     /**
      * Apply transformation using Qt types
@@ -200,10 +209,11 @@ protected:
      * @param orientation: the orientation that will applied in the transformation
      *
      */
-    void applyTransformation(std::string sourceFrame, std::string targetFrame, QVector3D position, QQuaternion orientation);
+    void applyTransformation(std::string sourceFrame, std::string targetFrame, 
+            QVector3D position, QQuaternion orientation, int widget_number);
 
 
-    void applyCameraParams();
+    void applyCameraParams(int widget_number);
 
 
     QImage grabbedImage; //image grabbed
@@ -211,7 +221,7 @@ protected:
     std::string worldPath; //path to sdf file that describe the scene
     
     RobotVizMap robotVizMap; //stores the vizkit3d::RobotVisualization and uses the model name as key
-    vizkit3d::Vizkit3DWidget *widget; //this widget stores and manage the robot models plugins
+    std::vector<vizkit3d::Vizkit3DWidget*> widget; //this widget stores and manage the robot models plugins
 
     std::vector<std::string> modelPaths; //stores paths with gazebo models
 
