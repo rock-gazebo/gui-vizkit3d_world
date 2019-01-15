@@ -20,6 +20,9 @@
 
 namespace vizkit3d_world {
 
+static int QT_ARGC = 1;
+static char* QT_ARGV[1] = { "vizkit3d_world" };
+
 Vizkit3dWorld::Vizkit3dWorld(std::string path, 
                             std::vector<std::string> modelPaths,
                             std::vector<std::string> ignoredModels,
@@ -36,12 +39,14 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     , zFar(zFar)
     , horizontalFov(horizontalFov)
 {
-    
     loadGazeboModelPaths(modelPaths);
+    if (!QApplication::instance()) {
+        LOG_WARN_S << "letting Vizkit3dWorld create the QApplication object" <<
+            " is deprecated. You should now create it before creating a Vizkit3dWorld" <<
+            std::endl;
 
-    int argc = 1;
-    char const*argv[] = { "vizkit3d_world" };
-    app = new QApplication(argc, const_cast<char**>(argv));
+        app = new QApplication(QT_ARGC, const_cast<char**>(QT_ARGV));
+    }
     //Qt application changes the locale information, what crashes the sdf initialization
     setlocale(LC_ALL, "C");
 
@@ -70,11 +75,8 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
 
 Vizkit3dWorld::~Vizkit3dWorld()
 {
-    app->closeAllWindows();
-    app->quit();
-
+    widget->close();
     delete widget;
-    delete app;
     toSdfElement.clear();
     robotVizMap.clear();
 }
