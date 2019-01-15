@@ -45,6 +45,8 @@ public:
      */
     virtual ~Vizkit3dWorld();
 
+    Vizkit3dWorld(Vizkit3dWorld const&) = delete;
+
     RobotVizMap getRobotVizMap();
 
     /**
