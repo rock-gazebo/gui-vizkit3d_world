@@ -222,11 +222,6 @@ protected:
     std::map<std::string, sdf::ElementPtr> toSdfElement; //map sdf element using model name
 
     /**
-     * Used in qt event loop to manager the Qt windows and events
-     */
-    QApplication *app;
-
-    /**
      * Camera parameters
      */
     int cameraWidth;

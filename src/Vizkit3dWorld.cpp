@@ -32,7 +32,6 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     : worldPath(path)
     , widget(NULL)
     , modelPaths(modelPaths)
-    , app(NULL)
     , cameraWidth((cameraWidth <= 0) ? 800 : cameraWidth)
     , cameraHeight((cameraHeight <= 0) ? 600 : cameraHeight)
     , zNear(zNear)
@@ -45,7 +44,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
             " is deprecated. You should now create it before creating a Vizkit3dWorld" <<
             std::endl;
 
-        app = new QApplication(QT_ARGC, const_cast<char**>(QT_ARGV));
+        QApplication app(QT_ARGC, const_cast<char**>(QT_ARGV));
     }
     //Qt application changes the locale information, what crashes the sdf initialization
     setlocale(LC_ALL, "C");
