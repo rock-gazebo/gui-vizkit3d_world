@@ -20,46 +20,45 @@
 
 namespace vizkit3d_world {
 
+static int QT_ARGC = 1;
+static char* QT_ARGV[1] = { "vizkit3d_world" };
+
 Vizkit3dWorld::Vizkit3dWorld(std::string path, 
                             std::vector<std::string> modelPaths,
                             std::vector<std::string> ignoredModels,
                             int cameraWidth, int cameraHeight, 
                             double horizontalFov, 
-                            double zNear, double zFar, int number_of_widgets)
+                            double zNear, double zFar)
     : worldPath(path)
+    , widget(NULL)
     , modelPaths(modelPaths)
-    , app(NULL)
     , cameraWidth((cameraWidth <= 0) ? 800 : cameraWidth)
     , cameraHeight((cameraHeight <= 0) ? 600 : cameraHeight)
     , zNear(zNear)
     , zFar(zFar)
     , horizontalFov(horizontalFov)
-    , number_of_widgets(number_of_widgets)
 {
-    
     loadGazeboModelPaths(modelPaths);
+    if (!QApplication::instance()) {
+        LOG_WARN_S << "letting Vizkit3dWorld create the QApplication object" <<
+            " is deprecated. You should now create it before creating a Vizkit3dWorld" <<
+            std::endl;
 
-    int argc = 1;
-    char const*argv[] = { "vizkit3d_world" };
-    app = new QApplication(argc, const_cast<char**>(argv));
+        QApplication* app = new QApplication(QT_ARGC, const_cast<char**>(QT_ARGV));
+    }
     //Qt application changes the locale information, what crashes the sdf initialization
     setlocale(LC_ALL, "C");
 
     //main widget to store the plugins and performs the GUI events
-    widget.reserve(number_of_widgets);
+    widget = new vizkit3d::Vizkit3DWidget(NULL, cameraWidth, cameraHeight, "world_osg", false);
 
-    for (int i = 0; i < number_of_widgets; ++i){
-    
-        widget[i] = new vizkit3d::Vizkit3DWidget(NULL, cameraWidth, cameraHeight, "world_osg", false);
-
-        widget[i]->setFixedSize(cameraWidth, cameraHeight); //set the window size
-        widget[i]->getView(0)->getCamera()->
-            setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
-        widget[i]->setAxes(false);
-        widget[i]->setAxesLabels(false);
-        widget[i]->getPropertyWidget()->hide(); //hide the right property widget
-        applyCameraParams(i);
-    }
+    widget->setFixedSize(cameraWidth, cameraHeight); //set the window size
+    widget->getView(0)->getCamera()->
+        setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
+    widget->setAxes(false);
+    widget->setAxesLabels(false);
+    widget->getPropertyWidget()->hide(); //hide the right property widget
+    applyCameraParams();
 
     this->ignoredModels = ignoredModels;
     //load the world sdf file and create the vizkit3d::RobotVisualization models
@@ -68,29 +67,17 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     attachPlugins();
 
     //apply the tranformations in each model
-    for (int i = 0; i < number_of_widgets; ++i){
-        applyTransformations(i);
-        widget[i]->setCameraManipulator(vizkit3d::NO_MANIPULATOR);
-    }
+    applyTransformations();
+
+    widget->setCameraManipulator(vizkit3d::NO_MANIPULATOR);
 }
 
 Vizkit3dWorld::~Vizkit3dWorld()
 {
-    app->closeAllWindows();
-    app->quit();
-
-    for (int i = 0; i < number_of_widgets; ++i){
-        delete widget[i];
-    }
-
-    delete app;
+    widget->close();
+    delete widget;
     toSdfElement.clear();
     robotVizMap.clear();
-}
-
-const int Vizkit3dWorld::getNumberOfWidgets()
-{
-    return number_of_widgets;
 }
 
 void Vizkit3dWorld::loadFromFile(std::string path) {
@@ -144,8 +131,7 @@ void Vizkit3dWorld::makeWorld(sdf::ElementPtr sdf, std::string version) {
     // with the actual world name in case someone is feeding data that uses it.
     std::string worldName = sdf->Get<std::string>("name");
     if (worldName != "world") {
-        for (int i = 0; i< number_of_widgets; ++i)
-            applyTransformation(worldName, "world", QVector3D(), QQuaternion(), i);
+        applyTransformation(worldName, "world", QVector3D(), QQuaternion());
     }
     
     if (sdf->HasElement("model")) {
@@ -210,12 +196,10 @@ RobotVizMap Vizkit3dWorld::getRobotVizMap() {
 void Vizkit3dWorld::attachPlugins()
 {
     for (RobotVizMap::iterator it = robotVizMap.begin(); it != robotVizMap.end(); it++){
-        for (int i = 0; i < number_of_widgets; ++i){
-            widget[i]->addPlugin(it->second);
-            it->second->setParent(widget[i]);
-            //it is necessary to add to widget first and set the parent widget
-            it->second->setVisualizationFrame(it->first.c_str());
-        }
+        widget->addPlugin(it->second);
+        it->second->setParent(widget);
+        //it is necessary to add to widget first and set the parent widget
+        it->second->setVisualizationFrame(it->first.c_str());
     }
 }
 
@@ -237,7 +221,7 @@ sdf::ElementPtr Vizkit3dWorld::getSdfElement(std::string name) {
     return (it == toSdfElement.end()) ? sdf::ElementPtr() : it->second;
 }
 
-void Vizkit3dWorld::applyTransformations(int widget_number) {
+void Vizkit3dWorld::applyTransformations() {
 
     for (RobotVizMap::iterator it = robotVizMap.begin();
             it != robotVizMap.end(); it++){
@@ -246,53 +230,36 @@ void Vizkit3dWorld::applyTransformations(int widget_number) {
 
         ignition::math::Pose3d pose =  sdfModel->GetElement("pose")->Get<ignition::math::Pose3d>();
 
-        applyTransformation(
-            "world", it->first,
-            QVector3D(pose.Pos().X(), pose.Pos().Y(), pose.Pos().Z()),
-            QQuaternion(pose.Rot().W(), pose.Rot().X(), pose.Rot().Y(), pose.Rot().Z()),
-            widget_number);
+        applyTransformation("world", it->first,
+                            QVector3D(pose.Pos().X(), pose.Pos().Y(), pose.Pos().Z()),
+                            QQuaternion(pose.Rot().W(), pose.Rot().X(), pose.Rot().Y(), pose.Rot().Z()));
 
     }
 }
 
-void Vizkit3dWorld::applyTransformation(base::samples::RigidBodyState rbs, int widget_number) {
+void Vizkit3dWorld::applyTransformation(base::samples::RigidBodyState rbs) {
     applyTransformation(rbs.targetFrame,
                         rbs.sourceFrame,
                         rbs.position,
-                        rbs.orientation,
-                        widget_number);
+                        rbs.orientation);
 }
 
-void Vizkit3dWorld::applyTransformation(
-    std::string targetFrame, 
-    std::string sourceFrame, 
-    base::Position position, 
-    base::Orientation orientation, 
-    int widget_number) 
-{
-    applyTransformation(
-        targetFrame, sourceFrame,
-        QVector3D(position.x(), position.y(), position.z()),
-        QQuaternion(orientation.w(), orientation.x(), orientation.y(), orientation.z()),
-        widget_number);
+void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sourceFrame, base::Position position, base::Orientation orientation) {
+    applyTransformation(targetFrame ,sourceFrame,
+                        QVector3D(position.x(), position.y(), position.z()),
+                        QQuaternion(orientation.w(), orientation.x(), orientation.y(), orientation.z()));
 }
 
-void Vizkit3dWorld::applyTransformation(
-    std::string targetFrame, 
-    std::string sourceFrame, 
-    QVector3D position, 
-    QQuaternion orientation,
-    int widget_number) 
-{
+void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sourceFrame, QVector3D position, QQuaternion orientation) {
 
-    if (widget[widget_number]) {
+    if (widget) {
         if (!targetFrame.empty() && !sourceFrame.empty()){
-            widget[widget_number]->setTransformation(QString::fromStdString(targetFrame),
+            widget->setTransformation(QString::fromStdString(targetFrame),
                                       QString::fromStdString(sourceFrame),
                                       position,
                                       orientation);
 
-            widget[widget_number]->setTransformer(false);
+            widget->setTransformer(false);
         }
         else {
             LOG_WARN("it is necessary to inform the target and source frames.");
@@ -302,11 +269,11 @@ void Vizkit3dWorld::applyTransformation(
 
 
 
-void Vizkit3dWorld::setTransformation(base::samples::RigidBodyState rbs, int widget_number) {
-    applyTransformation(rbs, widget_number);
+void Vizkit3dWorld::setTransformation(base::samples::RigidBodyState rbs) {
+    applyTransformation(rbs);
 }
 
-void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose, int widget_number) {
+void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose) {
     Eigen::Vector3d look_at = pose.position + pose.orientation * Eigen::Vector3d::UnitX();
     Eigen::Vector3d up      = pose.orientation * Eigen::Vector3d::UnitZ();
     Eigen::Vector3d eye     = pose.position;
@@ -314,52 +281,49 @@ void Vizkit3dWorld::setCameraPose(base::samples::RigidBodyState pose, int widget
     /**
      * Set the new camera position
      */
-    widget[widget_number]->setCameraEye(eye.x(), eye.y(), eye.z());
-    widget[widget_number]->setCameraLookAt(look_at.x(), look_at.y(), look_at.z());
-    widget[widget_number]->setCameraUp(up.x(), up.y(), up.z());
+    widget->setCameraEye(eye.x(), eye.y(), eye.z());
+    widget->setCameraLookAt(look_at.x(), look_at.y(), look_at.z());
+    widget->setCameraUp(up.x(), up.y(), up.z());
 }
 
 
 //internal enable and disable grabbing
-void Vizkit3dWorld::enableGrabbing(int widget_number)
+void Vizkit3dWorld::enableGrabbing()
 {
-    widget[widget_number]->enableGrabbing();
+    widget->enableGrabbing();
 }
 
-void Vizkit3dWorld::disableGrabbing(int widget_number)
+void Vizkit3dWorld::disableGrabbing()
 {
-    widget[widget_number]->disableGrabbing();
+    widget->disableGrabbing();
 }
 
-QImage Vizkit3dWorld::grabImage(int widget_number)
+QImage Vizkit3dWorld::grabImage()
 {
-    return widget[widget_number]->grab();
+    return widget->grab();
 }
 
 //grab frame
 //convert QImage to base::samples::frame::Frame
-void Vizkit3dWorld::grabFrame(base::samples::frame::Frame& frame, int widget_number)
+void Vizkit3dWorld::grabFrame(base::samples::frame::Frame& frame)
 {
-    QImage image = grabImage(widget_number);
-    cvtQImageToFrame(image, frame, 
-        (widget[widget_number]->isVisible() && !widget[widget_number]->isMinimized()));
+    QImage image = grabImage();
+    cvtQImageToFrame(image, frame, (widget->isVisible() && !widget->isMinimized()));
 }
 
-void Vizkit3dWorld::setCameraParams(int cameraWidth, int cameraHeight, 
-    double horizontalFov, double zNear, double zFar, int widget_number) 
-{
+void Vizkit3dWorld::setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar) {
     this->cameraWidth = cameraWidth;
     this->cameraHeight = cameraHeight;
     this->horizontalFov = horizontalFov;
     this->zNear = zNear;
     this->zFar = zFar;
-    applyCameraParams(widget_number);
+    applyCameraParams();
 }
 
-void Vizkit3dWorld::applyCameraParams(int widget_number) {
+void Vizkit3dWorld::applyCameraParams() {
     double aspectRatio = cameraWidth/cameraHeight;
     double fovy =  osg::DegreesToRadians(horizontalFov) / aspectRatio;
-    widget[widget_number]->getView(0)->getCamera()->setProjectionMatrixAsPerspective(osg::RadiansToDegrees(fovy), aspectRatio, zNear, zFar);
+    widget->getView(0)->getCamera()->setProjectionMatrixAsPerspective(osg::RadiansToDegrees(fovy), aspectRatio, zNear, zFar);
 }
 
 }
