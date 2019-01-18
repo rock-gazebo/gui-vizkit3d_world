@@ -5,7 +5,11 @@
 using namespace vizkit3d_world;
 
 BOOST_AUTO_TEST_CASE(it_loads_correctly_a_sdf_world)
-{
+{   
+    int qargc = 1;
+    char const* qargv[] = { "vizkit3d_world" };
+    QApplication app(qargc, const_cast<char**>(qargv));
+
     vizkit3d_world::Vizkit3dWorld vizkit3d_world("test_data/simple.world");
     RobotVizMap robot_viz = vizkit3d_world.getRobotVizMap();
     BOOST_TEST(robot_viz.size(),1);
@@ -14,6 +18,10 @@ BOOST_AUTO_TEST_CASE(it_loads_correctly_a_sdf_world)
 
 BOOST_AUTO_TEST_CASE(it_can_create_multiple_vizkit3_world)
 {
+    int qargc = 1;
+    char const* qargv[] = { "vizkit3d_world" };
+    QApplication app(qargc, const_cast<char**>(qargv));
+
     vizkit3d_world::Vizkit3dWorld vizkit3d_world("test_data/simple.world");
     RobotVizMap robot_viz = vizkit3d_world.getRobotVizMap();
     vizkit3d_world::Vizkit3dWorld vizkit3d_world_2("test_data/simple.world");
