@@ -309,6 +309,7 @@ void Vizkit3dWorld::grabFrame(base::samples::frame::Frame& frame)
 {
     QImage image = grabImage();
     cvtQImageToFrame(image, frame, (widget->isVisible() && !widget->isMinimized()));
+    frame.setStatus(base::samples::frame::STATUS_VALID);
 }
 
 void Vizkit3dWorld::setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar) {
