@@ -126,7 +126,6 @@ inline void cvtQImageToFrame(const QImage& src, base::samples::frame::Frame& dst
             QImage rgb24 = src.convertToFormat(QImage::Format_RGB888);
             dst.init(src.width(), src.height(), 8, base::samples::frame::MODE_BGR, -1);
             dst.setStatus(base::samples::frame::STATUS_VALID);
-            rgb24 = rgb24.rgbSwapped();
             cpyQImageToFrame(rgb24, dst, flipImage);
         }
         break;
