@@ -18,16 +18,17 @@
 #include <kdl_parser/RobotModelFormat.hpp>
 #include <locale.h>     /* struct lconv, setlocale, localeconv */
 
-namespace vizkit3d_world {
+using namespace std;
+using namespace vizkit3d_world;
 
 static int QT_ARGC = 1;
-static char* QT_ARGV[1] = { "vizkit3d_world" };
+static const char* QT_ARGV[1] = { "vizkit3d_world" };
 
-Vizkit3dWorld::Vizkit3dWorld(std::string path, 
-                            std::vector<std::string> modelPaths,
-                            std::vector<std::string> ignoredModels,
-                            int cameraWidth, int cameraHeight, 
-                            double horizontalFov, 
+Vizkit3dWorld::Vizkit3dWorld(string path,
+                            vector<string> modelPaths,
+                            vector<string> ignoredModels,
+                            int cameraWidth, int cameraHeight,
+                            double horizontalFov,
                             double zNear, double zFar)
     : worldPath(path)
     , widget(NULL)
@@ -42,7 +43,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     if (!QApplication::instance()) {
         LOG_WARN_S << "letting Vizkit3dWorld create the QApplication object" <<
             " is deprecated. You should now create it before creating a Vizkit3dWorld" <<
-            std::endl;
+            endl;
 
         QApplication* app = new QApplication(QT_ARGC, const_cast<char**>(QT_ARGV));
     }
@@ -67,7 +68,7 @@ Vizkit3dWorld::Vizkit3dWorld(std::string path,
     attachPlugins();
 
     //apply the tranformations in each model
-    applyTransformations();
+    applyInitialTransformations();
 
     widget->setCameraManipulator(vizkit3d::NO_MANIPULATOR);
 }
@@ -76,116 +77,118 @@ Vizkit3dWorld::~Vizkit3dWorld()
 {
     widget->close();
     delete widget;
-    toSdfElement.clear();
-    robotVizMap.clear();
 }
 
-void Vizkit3dWorld::loadFromFile(std::string path) {
-    std::pair<std::string, int> sdf_string = getRobotModelString(
+void Vizkit3dWorld::loadFromFile(string path) {
+    pair<string, int> sdf_string = getRobotModelString(
         path, kdl_parser::ROBOT_MODEL_FORMAT::ROBOT_MODEL_AUTO);
     loadFromString(sdf_string.first);
 }
 
-void Vizkit3dWorld::loadFromString(const std::string xml) {
+void Vizkit3dWorld::loadFromString(const string xml) {
     sdf::SDFPtr sdf(new sdf::SDF);
     if (!sdf::init(sdf)) {
-        throw std::runtime_error("unable to initialize sdf");
+        throw runtime_error("unable to initialize sdf");
     }
 
     if (!sdf::readString(xml, sdf)) {
-        throw std::invalid_argument("unable to load sdf from string " + xml + "\n");
+        throw invalid_argument("unable to load sdf from string " + xml + "\n");
     }
 
     if (!sdf->Root()->HasElement("world")) {
-        throw std::invalid_argument("the SDF doesn't have a <world> tag\n");
+        throw invalid_argument("the SDF doesn't have a <world> tag\n");
     }
 
     makeWorld(sdf->Root()->GetElement("world"), sdf->Version());
 }
 
-void Vizkit3dWorld::loadGazeboModelPaths(std::vector<std::string> modelPaths) {
+void Vizkit3dWorld::loadGazeboModelPaths(vector<string> modelPaths) {
 
-    for (std::vector<std::string>::iterator it = modelPaths.begin(); it != modelPaths.end(); it++){
+    for (vector<string>::iterator it = modelPaths.begin(); it != modelPaths.end(); it++){
         sdf::addURIPath("model://", *it);
     }
 
-    std::string home = getEnv("HOME");
+    string home = getEnv("HOME");
 
     sdf::addURIPath("model://", home + "/.gazebo/models");
 
-    std::string path = getEnv("GAZEBO_MODEL_PATH") + std::string(":") + getEnv("PATH");
+    string path = getEnv("GAZEBO_MODEL_PATH") + string(":") + getEnv("PATH");
 
-    std::vector<std::string> vec;
+    vector<string> vec;
     boost::algorithm::split(vec, path, boost::algorithm::is_any_of(":"), boost::algorithm::token_compress_on);
 
-    for (std::vector<std::string>::iterator it = vec.begin(); it != vec.end(); it++){
+    for (vector<string>::iterator it = vec.begin(); it != vec.end(); it++){
         if (!(*it).empty()){
             sdf::addURIPath("model://", *it);
         }
     }
 }
 
-void Vizkit3dWorld::makeWorld(sdf::ElementPtr sdf, std::string version) {
+void Vizkit3dWorld::makeWorld(sdf::ElementPtr sdf, string version) {
     // Transformations reported by rock-gazebo now always use "world" for the world,
     // regardless of the actual world name. Insert such a frame, but keep a frame
     // with the actual world name in case someone is feeding data that uses it.
-    std::string worldName = sdf->Get<std::string>("name");
+    string worldName = sdf->Get<string>("name");
     if (worldName != "world") {
         applyTransformation(worldName, "world", QVector3D(), QQuaternion());
     }
-    
-    if (sdf->HasElement("model")) {
 
-        std::map<std::string, int> robotVizCountMap;
+    if (!sdf->HasElement("model")) {
+        return;
+    }
 
-        sdf::ElementPtr modelElem = sdf->GetElement("model");
+    map<string, int> robotVizCountMap;
+    sdf::ElementPtr modelElem = sdf->GetElement("model");
+    while (modelElem) {
+        string modelName = modelElem->Get<string>("name");
 
-        while (modelElem) {
-
-            std::string modelName = modelElem->Get<std::string>("name");
-
-            /**
-             * this code is used to add the models with the same name
-             * but it is necessary to change control/kdl_parser
-             * and control/sdf_ruby to change the base segment name
-             */
-            if (robotVizMap.find(modelName) == robotVizMap.end()){
-                robotVizCountMap.insert(std::make_pair(modelName, 0));
-            }
-            else {
-                std::ostringstream buf;
-                buf << modelName << "_" << (robotVizCountMap[modelName]++);
-                modelName = buf.str();
-            }
-
-            if(std::find(ignoredModels.begin(), ignoredModels.end(), modelName) == ignoredModels.end()){
-                vizkit3d::RobotVisualization* robotViz = robotVizFromSdfModel(modelElem, modelName, version);
-                robotVizMap.insert(std::make_pair(modelName, robotViz));
-            }
-
-            modelElem = modelElem->GetNextElement("model");
-
+        /**
+         * this code is used to add the models with the same name
+         * but it is necessary to change control/kdl_parser
+         * and control/sdf_ruby to change the base segment name
+         */
+        if (robotVizMap.find(modelName) == robotVizMap.end()){
+            robotVizCountMap.insert(make_pair(modelName, 0));
         }
+        else {
+            ostringstream buf;
+            buf << modelName << "_" << (robotVizCountMap[modelName]++);
+            modelName = buf.str();
+        }
+
+        if(find(ignoredModels.begin(), ignoredModels.end(), modelName) == ignoredModels.end()){
+            vizkit3d::RobotVisualization* robotViz = robotVizFromSdfModel(modelElem, modelName, version);
+            robotVizMap.insert(make_pair(modelName, robotViz));
+        }
+
+        modelElem = modelElem->GetNextElement("model");
     }
 }
 
-vizkit3d::RobotVisualization* Vizkit3dWorld::robotVizFromSdfModel(sdf::ElementPtr sdf_model, std::string modelName, std::string version) {
+vizkit3d::RobotVisualization* Vizkit3dWorld::robotVizFromSdfModel(
+    sdf::ElementPtr sdf_model, string const& name, string sdf_version
+) {
+    string prefix;
+    string modelstr =
+        "<sdf version='" + sdf_version + "'>" +
+        sdf_model->ToString(prefix) +
+        "</sdf>";
+    auto result = robotVizFromSdfModel(modelstr, name, sdf_version);
+    toSdfElement.insert(make_pair(name, sdf_model));
+    return result;
+}
 
+vizkit3d::RobotVisualization* Vizkit3dWorld::robotVizFromSdfModel(
+    string const& sdf_model, string const& name, string sdf_version
+) {
     //vizkit3d plugin with model defined in the sdf model
     vizkit3d::RobotVisualization* robotViz = new vizkit3d::RobotVisualization();
 
-    std::string prefix;
-    std::string modelstr = "<sdf version='" +  version + "'>" + sdf_model->ToString(prefix) + "</sdf>";
-
     sdf::SDF sdf;
-    sdf.SetFromString(modelstr);
+    sdf.SetFromString(sdf_model);
     robotViz->loadFromString(QString(sdf.ToString().c_str()), QString("sdf"));
-    robotViz->setPluginName(modelName.c_str());
-    robotViz->relocateRoot(modelName);
-
-    toSdfElement.insert(std::make_pair(modelName, sdf_model));
-
-
+    robotViz->setPluginName(name.c_str());
+    robotViz->relocateRoot(name);
     return robotViz;
 }
 
@@ -203,33 +206,50 @@ void Vizkit3dWorld::attachPlugins()
     }
 }
 
-vizkit3d::RobotVisualization* Vizkit3dWorld::getRobotViz(std::string name)
+void Vizkit3dWorld::addModel(sdf::ElementPtr model, string const& name,
+                             string const& sdf_version) {
+    auto robotViz = robotVizFromSdfModel(model, name, sdf_version);
+    addRobotViz(name, robotViz);
+}
+
+void Vizkit3dWorld::addModel(string const& model, string const& name,
+                             string const& sdf_version) {
+    auto robotViz = robotVizFromSdfModel(model, name, sdf_version);
+    addRobotViz(name, robotViz);
+}
+
+void Vizkit3dWorld::addRobotViz(string const& name, vizkit3d::RobotVisualization* viz) {
+    robotVizMap.insert(make_pair(name, viz));
+
+    widget->addPlugin(viz);
+    viz->setParent(widget);
+    viz->setVisualizationFrame(name.c_str());
+}
+
+vizkit3d::RobotVisualization* Vizkit3dWorld::getRobotViz(string name)
 {
     RobotVizMap::iterator robotviz_it = robotVizMap.find(name);
     return (robotviz_it == robotVizMap.end()) ? NULL : robotviz_it->second;
 }
 
-void Vizkit3dWorld::setJoints(std::string modelName, base::samples::Joints joints) {
+void Vizkit3dWorld::setJoints(string modelName, base::samples::Joints joints) {
     vizkit3d::RobotVisualization *viz;
     if ((viz = getRobotViz(modelName)) != NULL) {
         viz->updateData(joints);
     }
 }
 
-sdf::ElementPtr Vizkit3dWorld::getSdfElement(std::string name) {
-    std::map<std::string, sdf::ElementPtr>::iterator it = toSdfElement.find(name);
+sdf::ElementPtr Vizkit3dWorld::getSdfElement(string name) {
+    map<string, sdf::ElementPtr>::iterator it = toSdfElement.find(name);
     return (it == toSdfElement.end()) ? sdf::ElementPtr() : it->second;
 }
 
-void Vizkit3dWorld::applyTransformations() {
-
+void Vizkit3dWorld::applyInitialTransformations() {
     for (RobotVizMap::iterator it = robotVizMap.begin();
             it != robotVizMap.end(); it++){
 
         sdf::ElementPtr sdfModel = getSdfElement(it->first);
-
         ignition::math::Pose3d pose =  sdfModel->GetElement("pose")->Get<ignition::math::Pose3d>();
-
         applyTransformation("world", it->first,
                             QVector3D(pose.Pos().X(), pose.Pos().Y(), pose.Pos().Z()),
                             QQuaternion(pose.Rot().W(), pose.Rot().X(), pose.Rot().Y(), pose.Rot().Z()));
@@ -244,13 +264,13 @@ void Vizkit3dWorld::applyTransformation(base::samples::RigidBodyState rbs) {
                         rbs.orientation);
 }
 
-void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sourceFrame, base::Position position, base::Orientation orientation) {
+void Vizkit3dWorld::applyTransformation(string targetFrame, string sourceFrame, base::Position position, base::Orientation orientation) {
     applyTransformation(targetFrame ,sourceFrame,
                         QVector3D(position.x(), position.y(), position.z()),
                         QQuaternion(orientation.w(), orientation.x(), orientation.y(), orientation.z()));
 }
 
-void Vizkit3dWorld::applyTransformation(std::string targetFrame, std::string sourceFrame, QVector3D position, QQuaternion orientation) {
+void Vizkit3dWorld::applyTransformation(string targetFrame, string sourceFrame, QVector3D position, QQuaternion orientation) {
 
     if (widget) {
         if (!targetFrame.empty() && !sourceFrame.empty()){
@@ -325,6 +345,4 @@ void Vizkit3dWorld::applyCameraParams() {
     double aspectRatio = cameraWidth/cameraHeight;
     double fovy =  osg::DegreesToRadians(horizontalFov) / aspectRatio;
     widget->getView(0)->getCamera()->setProjectionMatrixAsPerspective(osg::RadiansToDegrees(fovy), aspectRatio, zNear, zFar);
-}
-
 }
