@@ -49,6 +49,14 @@ public:
 
     RobotVizMap getRobotVizMap();
 
+    void addModel(sdf::ElementPtr model, std::string const& name,
+                  std::string const& sdf_version);
+
+    void addModel(std::string const& model, std::string const& name,
+                  std::string const& sdf_version);
+
+    void addRobotViz(std::string const& name, vizkit3d::RobotVisualization* viz);
+
     /**
      * set joints states
      *
@@ -109,6 +117,49 @@ public:
 
     void setCameraParams(int cameraWidth, int cameraHeight, double horizontalFov, double zNear, double zFar);
 
+    /**
+     * Return the RobotVisualization by name
+     *
+     * @param model name
+     * @return vizkit3d::RobotVisualization with the model
+     */
+    vizkit3d::RobotVisualization* getRobotViz(std::string name);
+
+    /**
+     * Apply transformation in a model
+     *
+     * @param pose with transformation
+     */
+    void applyTransformation(base::samples::RigidBodyState pose);
+
+    /**
+     * Apply transformation using rock types
+     *
+     * @param sourceFrame: the source frame
+     * @param targetFrame: the target frame
+     * @param position: the position that will applied in the transformation
+     * @param orientation: the orientation that will applied in the transformation
+     *
+     */
+    void applyTransformation(
+        std::string sourceFrame, std::string targetFrame,
+        base::Position position, base::Orientation orientation
+    );
+
+    /**
+     * Apply transformation using Qt types
+     *
+     * @param sourceFrame: the source frame
+     * @param targetFrame: the target frame
+     * @param position: the position that will applied in the transformation
+     * @param orientation: the orientation that will applied in the transformation
+     *
+     */
+    void applyTransformation(
+        std::string sourceFrame, std::string targetFrame,
+        QVector3D position, QQuaternion orientation
+    );
+
 protected:
 
     /**
@@ -131,31 +182,15 @@ protected:
      * Add gazebo models paths
      * @params list with paths to models
      */
-    void loadGazeboModelPaths(std::vector<std::string> modelPaths = std::vector<std::string>());
+    void loadGazeboModelPaths(
+        std::vector<std::string> modelPaths = std::vector<std::string>()
+    );
 
     /**
      * attach vizkit3d::RobotVisualization plugins to Vizkit3dWidget
      */
     void attachPlugins();
 
-
-    /**
-     * Return the RobotVisualization by name
-     *
-     * @param model name
-     * @return vizkit3d::RobotVisualization with the model
-     */
-    vizkit3d::RobotVisualization* getRobotViz(std::string name);
-
-    /**
-     * Create RobotVisualization using sdf model
-     *
-     * @param sdf_model the model structure with the model definition
-     * @param modelName the model model name
-     * @param version the version of sdf file
-     * @return vizkit3d::RobotVisualization created from sdf model
-     */
-    vizkit3d::RobotVisualization* robotVizFromSdfModel(sdf::ElementPtr sdf_model, std::string modelName, std::string version);
 
     /**
      * Create the scene contains every models defined in the sdf world file
@@ -173,47 +208,35 @@ protected:
     /**
      * Apply transformation in the each model of the scene
      */
-    void applyTransformations();
-
-    /**
-     * Apply transformation in a model
-     *
-     * @param pose with transformation
-     */
-    void applyTransformation(base::samples::RigidBodyState pose);
-
-    /**
-     * Apply transformation using rock types
-     *
-     * @param sourceFrame: the source frame
-     * @param targetFrame: the target frame
-     * @param position: the position that will applied in the transformation
-     * @param orientation: the orientation that will applied in the transformation
-     *
-     */
-    void applyTransformation(std::string sourceFrame, std::string targetFrame, base::Position position, base::Orientation orientation);
-
-    /**
-     * Apply transformation using Qt types
-     *
-     * @param sourceFrame: the source frame
-     * @param targetFrame: the target frame
-     * @param position: the position that will applied in the transformation
-     * @param orientation: the orientation that will applied in the transformation
-     *
-     */
-    void applyTransformation(std::string sourceFrame, std::string targetFrame, QVector3D position, QQuaternion orientation);
-
-
+    void applyInitialTransformations();
     void applyCameraParams();
+
+    /** @overload */
+    vizkit3d::RobotVisualization* robotVizFromSdfModel(
+        sdf::ElementPtr sdf_model, std::string const& modelName, std::string version
+    );
+
+    /**
+     * Create a robot visualization plugin from a sdf model
+     *
+     * @param sdf_model the model as text
+     * @param modelName the model model name
+     * @param version the version of sdf file
+     * @return vizkit3d::RobotVisualization created from sdf model
+     */
+    vizkit3d::RobotVisualization* robotVizFromSdfModel(
+        std::string const& sdf_model, std::string const& name, std::string version
+    );
 
 
     QImage grabbedImage; //image grabbed
 
     std::string worldPath; //path to sdf file that describe the scene
-    
-    RobotVizMap robotVizMap; //stores the vizkit3d::RobotVisualization and uses the model name as key
-    vizkit3d::Vizkit3DWidget *widget; //this widget stores and manage the robot models plugins
+
+    /** Stores the vizkit3d::RobotVisualization and uses the model name as key */
+    RobotVizMap robotVizMap;
+    /** This widget stores and manage the robot models plugins */
+    vizkit3d::Vizkit3DWidget *widget;
 
     std::vector<std::string> modelPaths; //stores paths with gazebo models
 
