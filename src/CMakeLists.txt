@@ -29,7 +29,6 @@ rock_executable(vizkit3d_world_bin
     DEPS
         vizkit3d_world
     DEPS_PKGCONFIG
-        opencv
         frame_helper
 )
 
