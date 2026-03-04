@@ -188,7 +188,7 @@ vizkit3d::RobotVisualization* Vizkit3dWorld::robotVizFromSdfModel(
     sdf.SetFromString(sdf_model);
     robotViz->loadFromString(QString(sdf.ToString().c_str()), QString("sdf"));
     robotViz->setPluginName(name.c_str());
-    robotViz->relocateRoot(name);
+    robotViz->setRootLink(QString::fromStdString(name));
     return robotViz;
 }
 
