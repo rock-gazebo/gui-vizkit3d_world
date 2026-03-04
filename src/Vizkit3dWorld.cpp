@@ -244,12 +244,20 @@ sdf::ElementPtr Vizkit3dWorld::getSdfElement(string name) {
     return (it == toSdfElement.end()) ? sdf::ElementPtr() : it->second;
 }
 
+#if SDF_MAJOR_VERSION >= 14
+#include <gz/math.hh>
+typedef gz::math::Pose3d SDFPose3d;
+#else
+#include <ignition/math.hh>
+typedef ignition::math::Pose3d SDFPose3d;
+#endif
+
 void Vizkit3dWorld::applyInitialTransformations() {
     for (RobotVizMap::iterator it = robotVizMap.begin();
             it != robotVizMap.end(); it++){
 
         sdf::ElementPtr sdfModel = getSdfElement(it->first);
-        ignition::math::Pose3d pose =  sdfModel->GetElement("pose")->Get<ignition::math::Pose3d>();
+        SDFPose3d pose =  sdfModel->GetElement("pose")->Get<SDFPose3d>();
         applyTransformation("world", it->first,
                             QVector3D(pose.Pos().X(), pose.Pos().Y(), pose.Pos().Z()),
                             QQuaternion(pose.Rot().W(), pose.Rot().X(), pose.Rot().Y(), pose.Rot().Z()));
